@@ -1,10 +1,10 @@
 import { createOpenAI } from '@ai-sdk/openai'
 
 /**
- * twloop AI Proxy — OpenAI 相容端點
- * 支援 Claude、Gemini、OpenAI 等多個 provider
+ * 透過本機 Python 橋接層呼叫 AI proxy（gRPC → cli.twloop.com）
+ * 啟動橋接：cd 01-dev/use_proxycli && uvicorn server:app --host 127.0.0.1 --port 8765
  */
 export const proxy = createOpenAI({
-  baseURL: 'https://clip.twloop.com/v1',
-  apiKey: process.env.AI_PROXY_TOKEN!,
+  baseURL: 'http://127.0.0.1:8765/v1',
+  apiKey: 'bridge',  // 橋接層不驗證 key，auth 在 Python .env 裡
 })
