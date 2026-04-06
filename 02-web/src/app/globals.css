@@ -1,0 +1,51 @@
+@import "tailwindcss";
+
+:root {
+  /* Life Mentor AI 設計系統 — 深色、溫暖、探秘 */
+  --bg-primary: #1a1814;
+  --bg-chat: #13100d;
+  --bg-bubble-mentor: #252017;
+  --bg-sidebar: #131109;
+
+  --text-primary: #e8e4df;
+  --text-secondary: #9ca3af;
+  --text-muted: #6b7280;
+
+  --accent-gold: #d97706;
+  --border-subtle: rgba(232, 228, 223, 0.08);
+
+  /* 導師代表色 */
+  --mentor-franklin: #2563eb;
+  --mentor-feynman: #16a34a;
+  --mentor-stoic: #71717a;
+}
+
+body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'Georgia', 'Noto Serif TC', serif;
+}
+
+/* 自定義 scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-subtle);
+  border-radius: 2px;
+}
+
+/* 刻字動畫 */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.typing-dot {
+  animation: blink 1.2s ease-in-out infinite;
+}
+.typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.typing-dot:nth-child(3) { animation-delay: 0.4s; }
