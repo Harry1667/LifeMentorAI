@@ -3,10 +3,27 @@ import { streamText, convertToModelMessages, type UIMessage } from 'ai'
 import { proxy } from '@/lib/ai-proxy'
 import { PERSONAS } from '@/lib/personas'
 import { getUserMemories, saveMemories } from '@/lib/supabase/client'
+import { getCustomPersonas } from '@/lib/supabase/admin'
 import { extractMemories } from '@/lib/memory-extraction'
 import type { MemoryRecord } from '@/lib/types/memory'
+import type { Persona } from '@/lib/types/persona'
 
 export const maxDuration = 30
+
+// 速率限制：每個 userId 每分鐘最多 20 次請求
+const RATE_LIMIT = 20
+const WINDOW_MS = 60_000
+const rateLimitMap = new Map<string, number[]>()
+
+function checkRateLimit(userId: string): boolean {
+  const now = Date.now()
+  const windowStart = now - WINDOW_MS
+  const timestamps = (rateLimitMap.get(userId) ?? []).filter((t) => t > windowStart)
+  if (timestamps.length >= RATE_LIMIT) return false
+  timestamps.push(now)
+  rateLimitMap.set(userId, timestamps)
+  return true
+}
 
 function buildMemoryContext(memories: MemoryRecord[]): string {
   if (memories.length === 0) return ''
@@ -39,9 +56,18 @@ export async function POST(req: Request) {
     return new Response('Unauthorized', { status: 401 })
   }
 
+  if (!checkRateLimit(userId)) {
+    return new Response('Too Many Requests', { status: 429 })
+  }
+
   const { messages, mentor: mentorId }: { messages: UIMessage[]; mentor: string } = await req.json()
 
-  const persona = PERSONAS[mentorId]
+  // 先查 hardcoded，再查 DB 自訂導師
+  let persona: Persona | undefined = PERSONAS[mentorId]
+  if (!persona) {
+    const custom = await getCustomPersonas()
+    persona = custom.find((p) => p.id === mentorId)
+  }
   if (!persona) {
     return new Response('Invalid mentor', { status: 400 })
   }
@@ -63,7 +89,7 @@ export async function POST(req: Request) {
     model: proxy('claude-sonnet-4-6'),
     system: systemPrompt,
     messages: await convertToModelMessages(messages),
-    maxOutputTokens: 600,
+    maxTokens: 600,
     onFinish: async ({ text }) => {
       // 非同步提取記憶，不阻塞回應
       extractMemories(lastUserMessage, text).then((extracted) => {

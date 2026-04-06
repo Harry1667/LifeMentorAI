@@ -50,7 +50,7 @@ export async function extractMemories(
     const { text } = await generateText({
       model: proxy('claude-haiku-4-5'),
       prompt,
-      maxOutputTokens: 500,
+      maxTokens: 500,
     })
 
     const parsed = JSON.parse(text.trim())

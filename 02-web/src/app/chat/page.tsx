@@ -5,12 +5,14 @@ import { DefaultChatTransport } from 'ai'
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { UserButton } from '@clerk/nextjs'
 import { PERSONAS, DEFAULT_PERSONA_ID } from '@/lib/personas'
+import type { Persona } from '@/lib/types/persona'
 import { MentorSidebar, MobileMentorTabs } from '@/components/MentorSidebar'
 import { MessageBubble, TypingBubble } from '@/components/MessageBubble'
 import { ChatInput } from '@/components/ChatInput'
 import { ActionCards } from '@/components/ActionCard'
+import Link from 'next/link'
 
-// 每個導師的快速行動建議（C0 靜態版）
+// 內建導師的快速行動建議
 const PERSONA_ACTIONS: Record<string, string[]> = {
   franklin: ['如何建立更好的習慣？', '幫我規劃今天的任務', '我拖延症很嚴重怎麼辦'],
   feynman:  ['解釋一個我不懂的概念', '我學不進去怎麼辦', '如何培養好奇心'],
@@ -18,8 +20,21 @@ const PERSONA_ACTIONS: Record<string, string[]> = {
 }
 
 export default function ChatPage() {
+  const [allPersonas, setAllPersonas] = useState<Persona[]>(Object.values(PERSONAS))
   const [activeMentorId, setActiveMentorId] = useState(DEFAULT_PERSONA_ID)
-  const persona = PERSONAS[activeMentorId]
+  const personaMap = useMemo(
+    () => Object.fromEntries(allPersonas.map((p) => [p.id, p])),
+    [allPersonas]
+  )
+  const persona = personaMap[activeMentorId] ?? allPersonas[0]
+
+  // 載入自訂導師
+  useEffect(() => {
+    fetch('/api/personas')
+      .then((r) => r.json())
+      .then((data: Persona[]) => setAllPersonas(data))
+      .catch(() => {})
+  }, [])
   const bottomRef = useRef<HTMLDivElement>(null)
   const [inputValue, setInputValue] = useState('')
 
@@ -40,7 +55,28 @@ export default function ChatPage() {
 
   const isLoading = status === 'submitted' || status === 'streaming'
 
-  // 切換導師時清空對話
+  // 載入對話記錄
+  useEffect(() => {
+    fetch(`/api/conversations?mentor=${activeMentorId}`)
+      .then((r) => r.json())
+      .then((msgs) => { if (msgs.length > 0) setMessages(msgs) })
+      .catch(() => {})
+  }, [activeMentorId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // AI 回應完成後存到 DB
+  const prevStatus = useRef(status)
+  useEffect(() => {
+    if (prevStatus.current !== 'ready' && status === 'ready' && messages.length > 0) {
+      fetch('/api/conversations', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mentorId: activeMentorId, messages }),
+      }).catch(() => {})
+    }
+    prevStatus.current = status
+  }, [status, messages, activeMentorId])
+
+  // 切換導師時清空對話（載入會由 useEffect 處理）
   function handleSelectMentor(id: string) {
     if (id === activeMentorId) return
     setActiveMentorId(id)
@@ -64,7 +100,7 @@ export default function ChatPage() {
 
   // 自動捲到底部
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    bottomRef.current?.scrollIntoView({ behavior: 'instant' })
   }, [messages, isLoading])
 
   // 最後一條訊息是否是導師 → 顯示行動卡片
@@ -75,7 +111,7 @@ export default function ChatPage() {
     <div className="flex flex-col h-full" style={{ backgroundColor: 'var(--bg-primary)' }}>
       {/* 主體：sidebar + chat */}
       <div className="flex flex-1 overflow-hidden">
-        <MentorSidebar activeMentorId={activeMentorId} onSelectMentor={handleSelectMentor} />
+        <MentorSidebar activeMentorId={activeMentorId} onSelectMentor={handleSelectMentor} personas={allPersonas} />
 
         {/* 聊天主區域 */}
         <main className="flex flex-col flex-1 overflow-hidden" style={{ backgroundColor: 'var(--bg-chat)' }}>
@@ -188,7 +224,7 @@ export default function ChatPage() {
       </div>
 
       {/* 手機版底部 tab */}
-      <MobileMentorTabs activeMentorId={activeMentorId} onSelectMentor={handleSelectMentor} />
+      <MobileMentorTabs activeMentorId={activeMentorId} onSelectMentor={handleSelectMentor} personas={allPersonas} />
     </div>
   )
 }

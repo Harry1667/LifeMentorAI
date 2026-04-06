@@ -1,11 +1,11 @@
 'use client'
 
-import { PERSONAS } from '@/lib/personas'
 import type { Persona } from '@/lib/types/persona'
 
 interface MentorSidebarProps {
   activeMentorId: string
   onSelectMentor: (id: string) => void
+  personas: Persona[]
 }
 
 function MentorBadge({ persona, isActive }: { persona: Persona; isActive: boolean }) {
@@ -39,7 +39,7 @@ function MentorBadge({ persona, isActive }: { persona: Persona; isActive: boolea
   )
 }
 
-export function MentorSidebar({ activeMentorId, onSelectMentor }: MentorSidebarProps) {
+export function MentorSidebar({ activeMentorId, onSelectMentor, personas }: MentorSidebarProps) {
   return (
     <aside
       className="hidden md:flex flex-col w-56 shrink-0 border-r"
@@ -63,15 +63,15 @@ export function MentorSidebar({ activeMentorId, onSelectMentor }: MentorSidebarP
         <p className="px-3 py-1 text-xs uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
           導師
         </p>
-        {Object.values(PERSONAS).map((persona) => (
+        {personas.map((persona) => (
           <div key={persona.id} onClick={() => onSelectMentor(persona.id)}>
             <MentorBadge persona={persona} isActive={activeMentorId === persona.id} />
           </div>
         ))}
       </div>
 
-      {/* 底部：新對話按鈕 */}
-      <div className="p-3 border-t" style={{ borderColor: 'var(--border-subtle)' }}>
+      {/* 底部：新對話 + 管理後台 */}
+      <div className="p-3 border-t space-y-2" style={{ borderColor: 'var(--border-subtle)' }}>
         <button
           className="w-full py-2 px-3 rounded-lg text-sm transition-colors"
           style={{
@@ -82,13 +82,20 @@ export function MentorSidebar({ activeMentorId, onSelectMentor }: MentorSidebarP
         >
           + 新對話
         </button>
+        <a
+          href="/admin"
+          className="w-full py-2 px-3 rounded-lg text-sm flex items-center justify-center transition-opacity hover:opacity-70"
+          style={{ color: 'var(--accent-gold)' }}
+        >
+          管理導師 / 理論
+        </a>
       </div>
     </aside>
   )
 }
 
 /** 手機版底部 Tab Bar */
-export function MobileMentorTabs({ activeMentorId, onSelectMentor }: MentorSidebarProps) {
+export function MobileMentorTabs({ activeMentorId, onSelectMentor, personas }: MentorSidebarProps) {
   return (
     <div
       className="md:hidden flex border-t"
@@ -97,7 +104,7 @@ export function MobileMentorTabs({ activeMentorId, onSelectMentor }: MentorSideb
         borderColor: 'var(--border-subtle)',
       }}
     >
-      {Object.values(PERSONAS).map((persona) => {
+      {personas.map((persona) => {
         const isActive = activeMentorId === persona.id
         return (
           <button

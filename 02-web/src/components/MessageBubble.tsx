@@ -26,7 +26,7 @@ export function MessageBubble({ role, content, persona, isStreaming }: MessageBu
 
       {/* 訊息氣泡 */}
       <div
-        className={`max-w-[72%] px-4 py-3 rounded-2xl text-sm leading-relaxed ${
+        className={`max-w-[72%] px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
           isAssistant
             ? 'rounded-tl-sm'
             : 'rounded-tr-sm text-white'
