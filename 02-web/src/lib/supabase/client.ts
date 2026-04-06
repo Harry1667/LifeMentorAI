@@ -1,32 +1,27 @@
-import { createClient } from '@supabase/supabase-js'
+import postgres from 'postgres'
 import type { MemoryRecord } from '@/lib/types/memory'
 
-// 使用 Service Role Key（伺服器端專用，不暴露給客戶端）
-// 連線字串必須是 Transaction Mode Pooler，不是直接連線
-const supabaseUrl = process.env.SUPABASE_URL!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-
-export const supabase = createClient(supabaseUrl, supabaseServiceKey)
+// Serverless 環境每次 function call 都可能建新連線，max: 1 避免連線耗盡
+const sql = postgres(process.env.DATABASE_URL!, { max: 1 })
 
 /**
  * 讀取用戶記憶
  * 按 importance DESC, updated_at DESC 排序，LIMIT 20
  */
 export async function getUserMemories(userId: string): Promise<MemoryRecord[]> {
-  const { data, error } = await supabase
-    .from('memories')
-    .select('*')
-    .eq('user_id', userId)
-    .order('importance', { ascending: false })
-    .order('updated_at', { ascending: false })
-    .limit(20)
-
-  if (error) {
-    console.error('[Supabase] 記憶讀取失敗:', error.message)
+  try {
+    const rows = await sql<MemoryRecord[]>`
+      SELECT id, user_id, type, content, importance, created_at, updated_at
+      FROM memories
+      WHERE user_id = ${userId}
+      ORDER BY importance DESC, updated_at DESC
+      LIMIT 20
+    `
+    return rows
+  } catch (err) {
+    console.error('[DB] 記憶讀取失敗:', err)
     return []
   }
-
-  return data as MemoryRecord[]
 }
 
 /**
@@ -39,17 +34,22 @@ export async function saveMemories(
 ): Promise<void> {
   if (memories.length === 0) return
 
-  const records = memories.map((m) => ({
-    user_id: userId,
-    type: m.type,
-    content: m.content,
-    importance: m.importance,
-  }))
+  try {
+    const records = memories.map((m) => ({
+      user_id: userId,
+      type: m.type,
+      content: JSON.stringify(m.content),
+      importance: m.importance,
+    }))
 
-  const { error } = await supabase.from('memories').insert(records)
-
-  if (error) {
-    console.error('[Supabase] 記憶寫入失敗:', error.message)
+    for (const r of records) {
+      await sql`
+        INSERT INTO memories (user_id, type, content, importance)
+        VALUES (${r.user_id}, ${r.type}, ${r.content}::jsonb, ${r.importance})
+      `
+    }
+  } catch (err) {
+    console.error('[DB] 記憶寫入失敗:', err)
     // 靜默失敗，不拋錯
   }
 }
