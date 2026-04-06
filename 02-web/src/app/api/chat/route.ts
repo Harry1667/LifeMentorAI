@@ -1,6 +1,6 @@
 import { auth } from '@clerk/nextjs/server'
 import { streamText, convertToModelMessages, type UIMessage } from 'ai'
-import { anthropic } from '@ai-sdk/anthropic'
+import { proxy } from '@/lib/ai-proxy'
 import { PERSONAS } from '@/lib/personas'
 import { getUserMemories, saveMemories } from '@/lib/supabase/client'
 import { extractMemories } from '@/lib/memory-extraction'
@@ -60,7 +60,7 @@ export async function POST(req: Request) {
 
   // 串流回應
   const result = streamText({
-    model: anthropic('claude-sonnet-4-6'),
+    model: proxy('claude-sonnet-4-6'),
     system: systemPrompt,
     messages: await convertToModelMessages(messages),
     maxOutputTokens: 600,

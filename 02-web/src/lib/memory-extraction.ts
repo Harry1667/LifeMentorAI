@@ -1,5 +1,5 @@
 import { generateText } from 'ai'
-import { anthropic } from '@ai-sdk/anthropic'
+import { proxy } from '@/lib/ai-proxy'
 import type { Memory } from '@/lib/types/memory'
 
 interface ExtractedMemory {
@@ -48,7 +48,7 @@ export async function extractMemories(
 
   try {
     const { text } = await generateText({
-      model: anthropic('claude-haiku-4-5-20251001'),
+      model: proxy('claude-haiku-4-5'),
       prompt,
       maxOutputTokens: 500,
     })
