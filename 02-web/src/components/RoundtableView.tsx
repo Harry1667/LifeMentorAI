@@ -40,6 +40,8 @@ export function RoundtableView({ mentors, initialQuestion, theoryIds, sessionId:
   sessionIdRef.current = sessionId
   const mentorMap = Object.fromEntries(mentors.map((m) => [m.id, m]))
   const abortRef = useRef<AbortController | null>(null)
+  const messagesRef = useRef(messages)
+  messagesRef.current = messages
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -216,7 +218,8 @@ export function RoundtableView({ mentors, initialQuestion, theoryIds, sessionId:
       abortRef.current = null
     }
 
-    const newMessages = [...messages, userMsg]
+    // 用 ref 取最新 messages（插嘴時 closure 裡的 messages 可能過時）
+    const newMessages = [...messagesRef.current, userMsg]
     setMessages(newMessages)
     setIsLoading(true)
     setReplyTo(null)

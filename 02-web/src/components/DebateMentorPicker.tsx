@@ -154,7 +154,7 @@ export function DebateMentorPicker({ personas, onStart, onCancel, initialQuestio
                           onClick={() => toggleTheory(t.id)}
                           className="flex flex-col px-3 py-2 rounded-lg text-left transition-all text-xs"
                           style={{
-                            backgroundColor: selected ? 'var(--accent-gold)15' : 'var(--bg-chat)',
+                            backgroundColor: selected ? 'rgba(217, 119, 6, 0.15)' : 'var(--bg-chat)',
                             border: `1px solid ${selected ? 'var(--accent-gold)' : 'var(--border-subtle)'}`,
                             color: selected ? 'var(--text-primary)' : 'var(--text-secondary)',
                           }}
