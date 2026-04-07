@@ -23,6 +23,12 @@ export async function PUT(req: Request) {
   const { sessionId, messages, title } = await req.json()
   if (!sessionId) return new Response('sessionId required', { status: 400 })
 
+  // 驗證 session 屬於當前用戶
+  const session = await getSession(sessionId)
+  if (!session || session.user_id !== userId) {
+    return new Response('Forbidden', { status: 403 })
+  }
+
   await updateSessionMessages(sessionId, messages, title)
   return Response.json({ ok: true })
 }

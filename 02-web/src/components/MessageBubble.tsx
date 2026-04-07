@@ -9,9 +9,19 @@ interface MessageBubbleProps {
   isStreaming?: boolean
 }
 
-// 簡易 markdown → HTML
-function renderMarkdown(text: string): string {
+// 跳脫 HTML 特殊字元，防止 XSS
+function escapeHtml(text: string): string {
   return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+}
+
+// 簡易 markdown → HTML（先跳脫 HTML 再處理 markdown）
+function renderMarkdown(text: string): string {
+  return escapeHtml(text)
     // code blocks
     .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre class="md-code-block"><code>$2</code></pre>')
     // inline code

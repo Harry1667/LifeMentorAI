@@ -99,9 +99,19 @@ export default function SummaryPage() {
   )
 }
 
-// 簡易 markdown → HTML（只處理 h2, h3, ul, bold）
+// 跳脫 HTML 特殊字元，防止 XSS
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+}
+
+// 簡易 markdown → HTML（先跳脫 HTML 再處理 markdown）
 function markdownToHtml(md: string): string {
-  return md
+  return escapeHtml(md)
     .replace(/^### (.+)$/gm, '<h3 style="color: var(--accent-gold); font-size: 0.875rem; font-weight: 600; margin-top: 1.5rem; margin-bottom: 0.5rem;">$1</h3>')
     .replace(/^## (.+)$/gm, '<h2 style="color: var(--text-primary); font-size: 1rem; font-weight: 600; margin-bottom: 1rem;">$1</h2>')
     .replace(/^\- (.+)$/gm, '<li style="margin-left: 1rem; list-style: disc; margin-bottom: 0.25rem;">$1</li>')
