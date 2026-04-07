@@ -1,3 +1,11 @@
+# Life Mentor AI
+
+## 專案概要
+- 產品：AI 人生導師對話平台（圓桌智者）
+- 技術棧：Next.js 16 + Clerk + Supabase + Anthropic API
+- 目錄結構：
+  - `01-dev/` — 開發文件（PRD、UserFlow、TechStack）
+  - `02-web/` — Next.js App Router 前端應用
 
 ## Skill routing
 

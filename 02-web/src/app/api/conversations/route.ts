@@ -1,26 +1,28 @@
 import { auth } from '@clerk/nextjs/server'
-import { getConversation, saveConversation } from '@/lib/supabase/client'
-import type { UIMessage } from 'ai'
+import { getSession, updateSessionMessages } from '@/lib/supabase/client'
 
+// GET /api/conversations?sessionId=xxx → 取得 session 訊息
 export async function GET(req: Request) {
   const { userId } = await auth()
   if (!userId) return new Response('Unauthorized', { status: 401 })
 
   const { searchParams } = new URL(req.url)
-  const mentorId = searchParams.get('mentor')
-  if (!mentorId) return new Response('mentor required', { status: 400 })
+  const sessionId = searchParams.get('sessionId')
+  if (!sessionId) return Response.json([])
 
-  const messages = await getConversation(userId, mentorId)
-  return Response.json(messages)
+  const session = await getSession(sessionId)
+  if (!session || session.user_id !== userId) return Response.json([])
+  return Response.json(session.messages)
 }
 
+// PUT /api/conversations → 更新 session 訊息
 export async function PUT(req: Request) {
   const { userId } = await auth()
   if (!userId) return new Response('Unauthorized', { status: 401 })
 
-  const { mentorId, messages }: { mentorId: string; messages: UIMessage[] } = await req.json()
-  if (!mentorId) return new Response('mentorId required', { status: 400 })
+  const { sessionId, messages, title } = await req.json()
+  if (!sessionId) return new Response('sessionId required', { status: 400 })
 
-  await saveConversation(userId, mentorId, messages)
+  await updateSessionMessages(sessionId, messages, title)
   return Response.json({ ok: true })
 }

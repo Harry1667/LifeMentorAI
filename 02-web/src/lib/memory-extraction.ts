@@ -16,41 +16,30 @@ export async function extractMemories(
   userMessage: string,
   assistantReply: string
 ): Promise<ExtractedMemory[]> {
-  const prompt = `你是一個記憶提取助理。從以下對話中，提取用戶透露的重要個人資訊。
+  const prompt = `你是記憶提取助理。所有欄位值必須用繁體中文撰寫。
 
 對話內容：
 用戶：${userMessage}
-導師回應：${assistantReply}
+導師：${assistantReply}
 
-請提取以下類型的資訊（如果有的話）：
-- topic：用戶提到的困境或話題
-- decision：用戶做的決定或接受/拒絕的建議
-- preference：用戶的偏好或不喜歡的事情
-- milestone：用戶提到的成就或重要事件
+任務：提取用戶透露的重要個人資訊（最多 3 條）。沒有值得記憶的內容就回傳 []。
 
-對於每條記憶，評估重要性（1-10）：
-- 10：核心價值觀/長期人格特質
-- 8：長期偏好（不喜歡某種學習方式）
-- 5：具體決定（決定用番茄鐘）
-- 3：短暫情緒/一次性話題
-- 1：無關緊要的細節
+類型與 content 格式：
+- topic → {"topic":"話題名","detail":"細節描述"}
+- decision → {"decision":"決定內容","outcome":"accepted|rejected|in_progress"}
+- preference → {"like":"喜歡的事","reason":"原因"} 或 {"dislike":"不喜歡的事","reason":"原因"}
+- milestone → {"description":"成就描述","date":"日期或空字串"}
 
-只提取真正有價值的資訊，最多 3 條。如果沒有值得記憶的內容，回傳空陣列。
+重要性評分：10=核心價值觀 8=長期偏好 5=具體決定 3=短暫話題 1=瑣碎細節
 
-回傳 JSON 格式（不要 markdown code block）：
-[
-  {
-    "type": "topic|decision|preference|milestone",
-    "content": { ...對應型別的欄位 },
-    "importance": 數字
-  }
-]`
+直接回傳 JSON 陣列，不要 markdown，不要解釋：
+[{"type":"類型","content":{...},"importance":數字}]`
 
   try {
     const { text } = await generateText({
       model: proxy('claude-haiku-4-5'),
       prompt,
-      maxTokens: 500,
+      maxOutputTokens: 500,
     })
 
     const parsed = JSON.parse(text.trim())

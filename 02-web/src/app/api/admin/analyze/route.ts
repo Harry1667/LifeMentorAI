@@ -32,7 +32,7 @@ export async function POST(req: Request) {
   "greeting": "第一次見面的開場白（20-40字，繁體中文，第一人稱，自然親切）",
   "systemPrompt": "詳細的角色設定（400-600字，繁體中文），包含：這個人的核心世界觀、思維方式、說話風格、最常用的思考框架。最後一段說明：你正在與台灣大學生或年輕工作者交談，用繁體中文回應，每次150-250字，給出具體可行的建議。"
 }`,
-        maxTokens: 1500,
+        maxOutputTokens: 1500,
       })
 
       const data = JSON.parse(extractJSON(text))

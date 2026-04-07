@@ -2,15 +2,18 @@
 
 import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport } from 'ai'
-import { useState, useRef, useEffect, useMemo } from 'react'
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { UserButton } from '@clerk/nextjs'
 import { PERSONAS, DEFAULT_PERSONA_ID } from '@/lib/personas'
 import type { Persona } from '@/lib/types/persona'
 import { MentorSidebar, MobileMentorTabs } from '@/components/MentorSidebar'
+import type { SessionSummary } from '@/components/MentorSidebar'
 import { MessageBubble, TypingBubble } from '@/components/MessageBubble'
 import { ChatInput } from '@/components/ChatInput'
 import { ActionCards } from '@/components/ActionCard'
-import Link from 'next/link'
+import { ActionSuggestion } from '@/components/ActionSuggestion'
+import { RoundtableView } from '@/components/RoundtableView'
+import { DebateMentorPicker } from '@/components/DebateMentorPicker'
 
 // 內建導師的快速行動建議
 const PERSONA_ACTIONS: Record<string, string[]> = {
@@ -22,6 +25,8 @@ const PERSONA_ACTIONS: Record<string, string[]> = {
 export default function ChatPage() {
   const [allPersonas, setAllPersonas] = useState<Persona[]>(Object.values(PERSONAS))
   const [activeMentorId, setActiveMentorId] = useState(DEFAULT_PERSONA_ID)
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
+  const [sidebarRefreshKey, setSidebarRefreshKey] = useState(0)
   const personaMap = useMemo(
     () => Object.fromEntries(allPersonas.map((p) => [p.id, p])),
     [allPersonas]
@@ -35,8 +40,12 @@ export default function ChatPage() {
       .then((data: Persona[]) => setAllPersonas(data))
       .catch(() => {})
   }, [])
+
   const bottomRef = useRef<HTMLDivElement>(null)
   const [inputValue, setInputValue] = useState('')
+  const [debateQuestion, setDebateQuestion] = useState<string | null>(null)
+  const [debateMentors, setDebateMentors] = useState<Persona[]>([])
+  const [showDebatePicker, setShowDebatePicker] = useState(false)
 
   // 用 ref 讓 transport 的 body 函數能讀到最新 mentor
   const activeMentorIdRef = useRef(activeMentorId)
@@ -52,34 +61,107 @@ export default function ChatPage() {
   )
 
   const { messages, sendMessage, status, setMessages } = useChat({ transport })
-
   const isLoading = status === 'submitted' || status === 'streaming'
 
   // 載入對話記錄
   useEffect(() => {
-    fetch(`/api/conversations?mentor=${activeMentorId}`)
+    if (!activeSessionId) return
+    const controller = new AbortController()
+    fetch(`/api/conversations?sessionId=${activeSessionId}`, { signal: controller.signal })
       .then((r) => r.json())
-      .then((msgs) => { if (msgs.length > 0) setMessages(msgs) })
+      .then((msgs) => { if (Array.isArray(msgs) && msgs.length > 0) setMessages(msgs) })
       .catch(() => {})
-  }, [activeMentorId]) // eslint-disable-line react-hooks/exhaustive-deps
+    return () => controller.abort()
+  }, [activeSessionId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // AI 回應完成後存到 DB
   const prevStatus = useRef(status)
+  const activeSessionIdRef = useRef(activeSessionId)
+  activeSessionIdRef.current = activeSessionId
+
   useEffect(() => {
     if (prevStatus.current !== 'ready' && status === 'ready' && messages.length > 0) {
-      fetch('/api/conversations', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mentorId: activeMentorId, messages }),
-      }).catch(() => {})
+      const sid = activeSessionIdRef.current
+      if (sid) {
+        // 更新現有 session
+        fetch('/api/conversations', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionId: sid, messages }),
+        }).then(() => setSidebarRefreshKey((k) => k + 1)).catch(() => {})
+      } else {
+        // 建立新 session
+        fetch('/api/conversations/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'chat',
+            mentorIds: [activeMentorId],
+            messages,
+          }),
+        })
+          .then((r) => r.json())
+          .then(({ id }) => {
+            setActiveSessionId(id)
+            activeSessionIdRef.current = id
+            setSidebarRefreshKey((k) => k + 1)
+          })
+          .catch(() => {})
+      }
     }
     prevStatus.current = status
   }, [status, messages, activeMentorId])
 
-  // 切換導師時清空對話（載入會由 useEffect 處理）
+  // 切換導師
   function handleSelectMentor(id: string) {
-    if (id === activeMentorId) return
+    setDebateQuestion(null)
+    setDebateMentors([])
+    setActiveSessionId(null)
     setActiveMentorId(id)
+    setMessages([])
+  }
+
+  // 選擇對話紀錄
+  function handleSelectSession(session: SessionSummary) {
+    setDebateQuestion(null)
+    setDebateMentors([])
+
+    if (session.type === 'roundtable') {
+      // 圓桌群聊：載入到 RoundtableView
+      setActiveSessionId(session.id)
+      const mentorPersonas = session.mentors
+        .map((m) => allPersonas.find((p) => p.name === m.name))
+        .filter(Boolean) as Persona[]
+      if (mentorPersonas.length >= 2) {
+        setDebateMentors(mentorPersonas)
+        setDebateQuestion('') // 空字串表示從歷史載入，不觸發初始發送
+      }
+    } else {
+      // 普通對話
+      const mentorId = session.mentors[0]
+        ? allPersonas.find((p) => p.name === session.mentors[0].name)?.id
+        : undefined
+      if (mentorId) setActiveMentorId(mentorId)
+      setActiveSessionId(session.id)
+      setMessages([])
+    }
+  }
+
+  // 刪除對話
+  function handleDeleteSession(sessionId: string) {
+    if (activeSessionId === sessionId) {
+      setActiveSessionId(null)
+      setMessages([])
+      setDebateQuestion(null)
+      setDebateMentors([])
+    }
+  }
+
+  // 新對話
+  function handleNewChat() {
+    setDebateQuestion(null)
+    setDebateMentors([])
+    setActiveSessionId(null)
     setMessages([])
   }
 
@@ -92,28 +174,41 @@ export default function ChatPage() {
     setInputValue('')
   }
 
-  // 行動卡片點擊 → 直接送出
+  // 行動卡片點擊
   function handleActionSelect(action: string) {
     if (isLoading) return
     sendMessage({ text: action })
   }
+
+  // 圓桌群聊關閉時儲存並刷新 sidebar
+  const handleRoundtableClose = useCallback(() => {
+    setDebateQuestion(null)
+    setDebateMentors([])
+    setSidebarRefreshKey((k) => k + 1)
+  }, [])
 
   // 自動捲到底部
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'instant' })
   }, [messages, isLoading])
 
-  // 最後一條訊息是否是導師 → 顯示行動卡片
   const lastMessage = messages[messages.length - 1]
   const showActions = !isLoading && lastMessage?.role === 'assistant'
 
   return (
     <div className="flex flex-col h-full" style={{ backgroundColor: 'var(--bg-primary)' }}>
-      {/* 主體：sidebar + chat */}
       <div className="flex flex-1 overflow-hidden">
-        <MentorSidebar activeMentorId={activeMentorId} onSelectMentor={handleSelectMentor} personas={allPersonas} />
+        <MentorSidebar
+          activeMentorId={activeMentorId}
+          activeSessionId={activeSessionId}
+          onSelectMentor={handleSelectMentor}
+          onSelectSession={handleSelectSession}
+          onNewChat={handleNewChat}
+          onDeleteSession={handleDeleteSession}
+          personas={allPersonas}
+          refreshKey={sidebarRefreshKey}
+        />
 
-        {/* 聊天主區域 */}
         <main className="flex flex-col flex-1 overflow-hidden" style={{ backgroundColor: 'var(--bg-chat)' }}>
           {/* 頂部 header */}
           <header
@@ -136,12 +231,31 @@ export default function ChatPage() {
                 </span>
               </div>
             </div>
-            <UserButton />
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setShowDebatePicker(true)}
+                className="text-xs px-3 py-1.5 rounded-lg transition-opacity hover:opacity-80"
+                style={{ border: '1px solid var(--accent-gold)', color: 'var(--accent-gold)' }}
+              >
+                圓桌群聊
+              </button>
+              <UserButton />
+            </div>
           </header>
 
-          {/* 訊息列表 */}
-          <div className="flex-1 overflow-y-auto px-4 py-6 space-y-4">
-            {/* 空狀態：導師問候 + 快速行動 */}
+          {/* 圓桌群聊模式 */}
+          {debateQuestion !== null && debateMentors.length >= 2 && (
+            <RoundtableView
+              initialQuestion={debateQuestion}
+              mentors={debateMentors}
+              sessionId={activeSessionId}
+              onClose={handleRoundtableClose}
+            />
+          )}
+
+          {/* 普通對話模式 */}
+          {debateQuestion === null && <div className="flex-1 overflow-y-auto px-4 py-6 space-y-4">
+            {/* 空狀態 */}
             {messages.length === 0 && !isLoading && (
               <div className="flex flex-col items-center justify-center h-full gap-6 pb-20">
                 <div
@@ -162,10 +276,7 @@ export default function ChatPage() {
                       key={action}
                       onClick={() => handleActionSelect(action)}
                       className="px-3 py-1.5 rounded-lg text-sm transition-opacity hover:opacity-70"
-                      style={{
-                        border: `1px solid ${persona.color}`,
-                        color: persona.color,
-                      }}
+                      style={{ border: `1px solid ${persona.color}`, color: persona.color }}
                     >
                       {action}
                     </button>
@@ -195,12 +306,26 @@ export default function ChatPage() {
               )
             })}
 
-            {/* 導師思考中（等待第一個 token） */}
             {isLoading && lastMessage?.role === 'user' && (
               <TypingBubble persona={persona} />
             )}
 
-            {/* 行動卡片 */}
+            {/* 行動建議（從最後一條 assistant 回應中解析） */}
+            {showActions && (() => {
+              const lastText = lastMessage.parts
+                .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
+                .map((p) => p.text).join('')
+              const actionMatch = lastText.match(/【行動】(.+)/)
+              if (!actionMatch) return null
+              return (
+                <ActionSuggestion
+                  advice={actionMatch[1].trim()}
+                  mentorSource={persona.name}
+                  accentColor={persona.color}
+                />
+              )
+            })()}
+
             {showActions && (
               <ActionCards
                 actions={PERSONA_ACTIONS[activeMentorId] ?? []}
@@ -210,21 +335,34 @@ export default function ChatPage() {
             )}
 
             <div ref={bottomRef} />
-          </div>
+          </div>}
 
-          {/* 輸入區 */}
-          <ChatInput
+          {debateQuestion === null && <ChatInput
             value={inputValue}
             onChange={setInputValue}
             onSubmit={handleSubmit}
             isLoading={isLoading}
             accentColor={persona.color}
-          />
+          />}
         </main>
       </div>
 
-      {/* 手機版底部 tab */}
       <MobileMentorTabs activeMentorId={activeMentorId} onSelectMentor={handleSelectMentor} personas={allPersonas} />
+
+      {showDebatePicker && (
+        <DebateMentorPicker
+          personas={allPersonas}
+          initialQuestion={inputValue.trim()}
+          onCancel={() => setShowDebatePicker(false)}
+          onStart={(q, mentors) => {
+            setShowDebatePicker(false)
+            setInputValue('')
+            setActiveSessionId(null)
+            setDebateMentors(mentors)
+            setDebateQuestion(q)
+          }}
+        />
+      )}
     </div>
   )
 }

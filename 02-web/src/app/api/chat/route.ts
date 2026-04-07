@@ -3,7 +3,7 @@ import { streamText, convertToModelMessages, type UIMessage } from 'ai'
 import { proxy } from '@/lib/ai-proxy'
 import { PERSONAS } from '@/lib/personas'
 import { getUserMemories, saveMemories } from '@/lib/supabase/client'
-import { getCustomPersonas } from '@/lib/supabase/admin'
+import { getCustomPersonas, getTheories } from '@/lib/supabase/admin'
 import { extractMemories } from '@/lib/memory-extraction'
 import type { MemoryRecord } from '@/lib/types/memory'
 import type { Persona } from '@/lib/types/persona'
@@ -72,11 +72,21 @@ export async function POST(req: Request) {
     return new Response('Invalid mentor', { status: 400 })
   }
 
-  // 讀取記憶（LIMIT 20，按 importance DESC）
-  const memories = await getUserMemories(userId)
+  // 讀取記憶 + 理論
+  const [memories, theories] = await Promise.all([
+    getUserMemories(userId),
+    getTheories(),
+  ])
   const memoryContext = buildMemoryContext(memories)
+  const theoryContext = theories.length > 0
+    ? `\n\n【可參考的理論框架】\n${theories.map((t) => `- ${t.name}：${t.coreIdea}\n  應用：${t.systemPromptExtension}`).join('\n')}\n\n在回應中，如果相關，自然地融入以上理論框架。`
+    : ''
 
-  const systemPrompt = persona.systemPrompt + memoryContext
+  const actionInstruction = `\n\n如果你在回應中給了具體可執行的建議，在回應最後另起一行用這個格式標記（最多 1 個）：
+【行動】具體的行動建議內容
+不是每次都需要標記，只有當建議夠具體、可立刻執行時才加。`
+
+  const systemPrompt = persona.systemPrompt + memoryContext + theoryContext + actionInstruction
 
   // 取最後一條用戶訊息，用於記憶提取
   const lastUserMessage = [...messages].reverse().find((m) => m.role === 'user')?.parts
@@ -89,7 +99,7 @@ export async function POST(req: Request) {
     model: proxy('claude-sonnet-4-6'),
     system: systemPrompt,
     messages: await convertToModelMessages(messages),
-    maxTokens: 600,
+    maxOutputTokens: 600,
     onFinish: async ({ text }) => {
       // 非同步提取記憶，不阻塞回應
       extractMemories(lastUserMessage, text).then((extracted) => {
