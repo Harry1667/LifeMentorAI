@@ -1,6 +1,6 @@
-import { auth } from '@clerk/nextjs/server'
 import { generateText } from 'ai'
 import { proxy } from '@/lib/ai-proxy'
+import { requireAdmin } from '@/lib/admin-check'
 
 function extractJSON(text: string): string {
   const match = text.match(/```(?:json)?\s*([\s\S]*?)```/)
@@ -9,8 +9,8 @@ function extractJSON(text: string): string {
 }
 
 export async function POST(req: Request) {
-  const { userId } = await auth()
-  if (!userId) return new Response('Unauthorized', { status: 401 })
+  const deny = await requireAdmin()
+  if (deny) return deny
 
   const { type, name } = await req.json()
 
