@@ -142,11 +142,13 @@ export async function POST(req: Request) {
       const thisRoundMsgs: { mentorName: string; text: string }[] = []
       let turnCount = 0
       let consecutiveSkips = 0
+      let questionAskedToUser = false  // 有人 @用戶 提問了
 
       for (let i = 0; i < fullTurnOrder.length; i++) {
         if (turnCount >= MAX_TURNS) break
-        // 連續跳過次數 >= 導師數量 → 大家都沒話說了
         if (consecutiveSkips >= mentorIds.length) break
+        // 已經有人 @用戶 提問 → 停止，等用戶回應
+        if (questionAskedToUser) break
 
         const mentorId = fullTurnOrder[i]
         const mentor = allPersonaMap.get(mentorId)
@@ -162,12 +164,13 @@ export async function POST(req: Request) {
 對話規則：
 - 像群組聊天一樣自然說話，1-3 句話，最多 60 字
 - 回應另一個導師 → 用 @導師名 開頭（例如：@費曼 我不同意...）
-- 對用戶提問或點名用戶 → 用 @用戶 開頭（例如：@用戶 你當時為什麼停下來？）
-- 給出一般性結論或陳述 → 不需要加 @
+- 對用戶說話或提問 → 必須用 @用戶 開頭（例如：@用戶 你當時為什麼停下來？）
+  ⚠️ 絕對不要寫「用戶，...」，一定要寫「@用戶 ...」
+- 給出一般性陳述（不是對特定人說的）→ 不需要加 @
 - 可以同意、反駁、補充、追問其他導師，像真人一樣互動
-- 如果前面的討論已經充分表達了你的想法，或你沒有新觀點，只回覆「（跳過）」
-- 不要寫長篇大論。你在聊天，不是在寫文章
-- 適時用 @用戶 向用戶提出反問，幫助他們思考`
+- 如果前面已經有人用 @用戶 提了問題，不要再追加問題。等用戶回答後再繼續。此時回覆「（跳過）」
+- 如果前面的討論已經充分表達了你的想法，或你沒有新觀點，回覆「（跳過）」
+- 不要寫長篇大論。你在聊天，不是在寫文章`
 
         const systemPrompt = mentor.systemPrompt + memoryContext + theoryContext + roundtableRules
 
@@ -218,6 +221,11 @@ export async function POST(req: Request) {
           ))
 
           thisRoundMsgs.push({ mentorName: mentor.name, text: trimmed })
+
+          // 偵測是否 @用戶 提問 → 停下來等用戶回應
+          if (trimmed.includes('@用戶') && (trimmed.includes('？') || trimmed.includes('?'))) {
+            questionAskedToUser = true
+          }
 
         } catch (err) {
           console.error(`[Roundtable] ${mentor.name} 回應失敗:`, err)

@@ -1,5 +1,62 @@
 # SESSION NOTES
 
+## 2026-04-08（第三次工作階段）
+
+### 今天完成的事
+
+1. **QA 安全修復**
+   - `conversations PUT` 加 user 權限驗證（防越權修改）
+   - `MessageBubble` + `summary` markdown 渲染加 `escapeHtml()` 防 XSS
+   - Admin API 加角色權限控制（`ADMIN_USER_IDS` 環境變數）
+   - 刪除死碼 `debate/route.ts` + `DebateView.tsx`（-537 行）
+
+2. **圓桌群聊重構：多 Agent 獨立思考**
+   - 每個導師獨立 AI 呼叫，短回應（1-3 句，maxTokens 120）
+   - 導師互相 @mention 對話（@導師名、@用戶）
+   - 最多 2 輪 6 turns，連續跳過自動停止
+   - 前端 @mention 高亮顯示
+
+3. **圓桌功能增強**
+   - @用戶 tag：導師用 @用戶 向用戶提問
+   - 插嘴功能：用戶可在導師討論中送訊息（AbortController 中斷串流）
+   - 理論融合：prompt 改為鼓勵導師融合理論和自身思維
+   - 圓桌可選擇特定理論加入討論
+
+4. **分類系統**
+   - DB 加 `category` 欄位（custom_personas + theories）
+   - AI analyze 自動分類（管理學、心理學、哲學等）
+   - Admin UI 顯示分類標籤
+   - 內建導師加分類（franklin=管理學、feynman=科學、stoic=哲學）
+
+### 未完成的事
+- Enter/Shift+Enter 行為確認（程式碼已正確，待用戶驗證）
+- C0/C1 自用測試持續中
+- 偏好學習（需 20+ 行動樣本累積）
+
+### 下次從哪裡開始
+- 測試圓桌群聊新體驗（多 Agent 短對話 + 插嘴 + 理論選擇）
+- 觀察導師是否正確使用 @用戶 和 @導師名
+- 測試理論融合效果（加馬斯克導師 + 逆向思考法理論）
+- 根據體驗回饋微調 prompt 和 token 數
+
+### 啟動方式
+```bash
+# 終端 1：Python Bridge
+cd 01-dev/use_proxycli
+python3.11 -m uvicorn server:app --host 127.0.0.1 --port 8765
+
+# 終端 2：Next.js
+cd 02-web
+npm run dev
+```
+
+### 踩過的坑
+- Headless browser (gstack browse) 跟 Clerk auth flow 不相容（登入後跳 about:blank）
+- DB migration 需要在 02-web 目錄下跑 node（才能 require postgres）
+- `postgres` tagged template 的 ALTER TABLE 不生效，要用 `sql.unsafe()` 才行
+
+---
+
 ## 2026-04-07（第二次工作階段）
 
 ### 今天完成的事
@@ -44,32 +101,3 @@
    - 圓桌 AI 無回應（streamText → generateText）
    - 圓桌歷史載入空白（加 DB 讀取 useEffect）
    - Sidebar 對話類型區分
-
-### 未完成的事
-- 偏好學習（需 20+ 行動樣本累積）
-- C0/C1 自用測試 1 週驗證
-
-### 下次從哪裡開始
-- 開始自用測試，每天至少 1 次對話
-- 觀察記憶提取品質（haiku 是否正確提取繁體中文）
-- 測試行動追蹤完整流程（接受→進行中→完成）
-- 1 週後產生第一份每週摘要
-- 根據自用回饋決定是否進入 C2
-
-### 啟動方式
-```bash
-# 終端 1：Python Bridge
-cd 01-dev/use_proxycli
-python3.11 -m uvicorn server:app --host 127.0.0.1 --port 8765
-
-# 終端 2：Next.js
-cd 02-web
-npm run dev
-```
-
-### 踩過的坑
-- AI SDK v6 用 `maxOutputTokens` 不是 `maxTokens`
-- `streamText` 的 `textStream`（for await）在 Python bridge 上不穩定，圓桌改用 `generateText`
-- React 18 Strict Mode 會 double-invoke useEffect，用 useRef 鎖防止重複
-- DB 載入的訊息格式可能沒有 `parts`（舊格式用 `content`），需要 fallback
-- `chat_sessions` 表取代舊的 `conversations` 表（`(user_id, mentor_id)` 主鍵不支援多筆對話）
