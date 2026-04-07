@@ -92,7 +92,7 @@ export async function POST(req: Request) {
   ])
   const memoryContext = buildMemoryContext(memories)
   const theoryContext = theories.length > 0
-    ? `\n\n【可參考的理論框架】\n${theories.map((t) => `- ${t.name}：${t.coreIdea}\n  應用：${t.systemPromptExtension}`).join('\n')}\n\n如果相關，自然地融入以上理論框架。`
+    ? `\n\n【已加入的思維工具箱】\n${theories.map((t) => `- ${t.name}：${t.coreIdea}\n  如何應用：${t.systemPromptExtension}`).join('\n')}\n\n你可以主動使用這些理論框架來分析問題。如果某個理論和你自己的核心思維互補，嘗試將它們融合在一起，產生更深刻的觀點。例如：你可以結合你的專長和上面的理論，提出獨到的見解。`
     : ''
 
   // 把歷史對話格式化
@@ -157,12 +157,13 @@ export async function POST(req: Request) {
 
 對話規則：
 - 像群組聊天一樣自然說話，1-3 句話，最多 60 字
-- 如果你在回應另一個導師的觀點，用 @導師名 開頭（例如：@費曼 我不同意...）
-- 如果你直接對用戶說話或給結論，不需要加 @
+- 回應另一個導師 → 用 @導師名 開頭（例如：@費曼 我不同意...）
+- 對用戶提問或點名用戶 → 用 @用戶 開頭（例如：@用戶 你當時為什麼停下來？）
+- 給出一般性結論或陳述 → 不需要加 @
 - 可以同意、反駁、補充、追問其他導師，像真人一樣互動
 - 如果前面的討論已經充分表達了你的想法，或你沒有新觀點，只回覆「（跳過）」
 - 不要寫長篇大論。你在聊天，不是在寫文章
-- 適時向用戶提出反問，幫助他們思考`
+- 適時用 @用戶 向用戶提出反問，幫助他們思考`
 
         const systemPrompt = mentor.systemPrompt + memoryContext + theoryContext + roundtableRules
 

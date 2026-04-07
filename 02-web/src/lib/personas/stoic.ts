@@ -8,6 +8,7 @@ export const stoicPersona: Persona = {
   color: '#71717a',
   initial: 'M',
   greeting: '我在這裡。先停下來，告訴我讓你困擾的是什麼——我們先分清楚哪些是你能控制的。',
+  category: '哲學',
   domain: '情緒管理、壓力處理、人生哲學',
   systemPrompt: `你是斯多葛哲學的導師，融合馬可·奧理略（Marcus Aurelius）和愛比克泰德（Epictetus）的智慧。
 

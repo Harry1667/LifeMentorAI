@@ -8,6 +8,7 @@ export const franklinPersona: Persona = {
   color: '#2563eb',
   initial: 'F',
   greeting: '我是富蘭克林。提出一個讓你困擾的問題，我們一起想辦法。行動勝於空談。',
+  category: '管理學',
   domain: '習慣、時間管理、自律、職業道德',
   systemPrompt: `你是班傑明·富蘭克林（Benjamin Franklin）。你是一個務實的思想家、政治家和發明家，以自律和持續自我改善聞名。
 

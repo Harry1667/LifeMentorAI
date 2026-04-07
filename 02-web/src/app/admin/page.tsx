@@ -273,7 +273,14 @@ export default function AdminPage() {
                         {p.initial}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium">{p.name}</div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium">{p.name}</span>
+                          {p.category && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ backgroundColor: 'var(--bg-chat)', color: 'var(--text-muted)' }}>
+                              {p.category}
+                            </span>
+                          )}
+                        </div>
                         <div className="text-xs truncate" style={{ color: 'var(--text-secondary)' }}>{p.archetype}</div>
                       </div>
                       <button
@@ -408,7 +415,14 @@ export default function AdminPage() {
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium" style={{ color: 'var(--accent-gold)' }}>{t.name}</div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium" style={{ color: 'var(--accent-gold)' }}>{t.name}</span>
+                            {t.category && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ backgroundColor: 'var(--bg-chat)', color: 'var(--text-muted)' }}>
+                                {t.category}
+                              </span>
+                            )}
+                          </div>
                           <div className="text-xs mt-1 line-clamp-2" style={{ color: 'var(--text-secondary)' }}>{t.coreIdea}</div>
                           {Array.isArray(t.keyPrinciples) && t.keyPrinciples.length > 0 && (
                             <div className="flex flex-wrap gap-1 mt-2">

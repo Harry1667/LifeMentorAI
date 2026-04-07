@@ -38,6 +38,7 @@ export function RoundtableView({ mentors, initialQuestion, sessionId: initialSes
   const sessionIdRef = useRef(sessionId)
   sessionIdRef.current = sessionId
   const mentorMap = Object.fromEntries(mentors.map((m) => [m.id, m]))
+  const abortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -208,10 +209,19 @@ export function RoundtableView({ mentors, initialQuestion, sessionId: initialSes
       timestamp: Date.now(),
     }
 
+    // 如果正在串流，先中斷
+    if (abortRef.current) {
+      abortRef.current.abort()
+      abortRef.current = null
+    }
+
     const newMessages = [...messages, userMsg]
     setMessages(newMessages)
     setIsLoading(true)
     setReplyTo(null)
+
+    const controller = new AbortController()
+    abortRef.current = controller
 
     try {
       const res = await fetch('/api/roundtable', {
@@ -224,13 +234,20 @@ export function RoundtableView({ mentors, initialQuestion, sessionId: initialSes
           mentionedMentorIds: options?.mentionedMentorIds,
           synthesize: options?.synthesize,
         }),
+        signal: controller.signal,
       })
 
       if (!res.ok) throw new Error(await res.text())
       await handleSSE(res, newMessages)
     } catch (err) {
-      console.error('[Roundtable] 發送失敗:', err)
+      if ((err as Error).name === 'AbortError') {
+        // 用戶插嘴中斷，正常行為
+      } else {
+        console.error('[Roundtable] 發送失敗:', err)
+      }
       setIsLoading(false)
+    } finally {
+      abortRef.current = null
     }
   }
 
@@ -247,7 +264,7 @@ export function RoundtableView({ mentors, initialQuestion, sessionId: initialSes
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     const text = inputValue.trim()
-    if (!text || isLoading) return
+    if (!text) return
 
     const mentionedMentorIds = parseMentions(text)
     const replyToMentorId = replyTo?.mentorId
@@ -383,10 +400,9 @@ export function RoundtableView({ mentors, initialQuestion, sessionId: initialSes
                 handleSubmit(e)
               }
             }}
-            placeholder={isLoading ? '導師們思考中...' : `輸入訊息，或 @${mentors[0]?.name ?? '導師名'} 點名回應`}
-            disabled={isLoading}
+            placeholder={isLoading ? '導師們討論中...（你可以隨時插嘴）' : `輸入訊息，或 @${mentors[0]?.name ?? '導師名'} 點名回應`}
             rows={1}
-            className="w-full rounded-xl px-4 py-2.5 text-sm resize-none outline-none disabled:opacity-50"
+            className="w-full rounded-xl px-4 py-2.5 text-sm resize-none outline-none"
             style={{
               backgroundColor: 'var(--bg-primary)',
               color: 'var(--text-primary)',
@@ -396,7 +412,7 @@ export function RoundtableView({ mentors, initialQuestion, sessionId: initialSes
         </div>
         <button
           type="submit"
-          disabled={!inputValue.trim() || isLoading}
+          disabled={!inputValue.trim()}
           className="px-4 py-2.5 rounded-xl text-sm font-medium text-white transition-opacity disabled:opacity-30"
           style={{ backgroundColor: 'var(--accent-gold)' }}
         >

@@ -8,4 +8,5 @@ export interface Persona {
   color: string       // 代表色 (hex)
   initial: string     // 字母縮寫
   greeting: string    // 空狀態時的歡迎詞
+  category?: string   // 分類（管理、心理學、哲學等）
 }

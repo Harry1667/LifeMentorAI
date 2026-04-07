@@ -10,13 +10,14 @@ export interface TheoryRecord {
   keyPrinciples: string[]
   application: string
   systemPromptExtension: string
+  category: string
   createdAt: string
 }
 
 export async function getCustomPersonas(): Promise<Persona[]> {
   try {
     const rows = await sql`
-      SELECT id, name, full_name, archetype, color, initial, greeting, domain, system_prompt
+      SELECT id, name, full_name, archetype, color, initial, greeting, domain, system_prompt, category
       FROM custom_personas
       ORDER BY created_at DESC
     `
@@ -30,6 +31,7 @@ export async function getCustomPersonas(): Promise<Persona[]> {
       greeting: r.greeting ?? '',
       domain: r.domain ?? '',
       systemPrompt: r.system_prompt,
+      category: r.category ?? '其他',
     }))
   } catch (err) {
     console.error('[DB] 自訂導師讀取失敗:', err)
@@ -39,11 +41,11 @@ export async function getCustomPersonas(): Promise<Persona[]> {
 
 export async function saveCustomPersona(persona: Persona): Promise<void> {
   await sql`
-    INSERT INTO custom_personas (id, name, full_name, archetype, color, initial, greeting, domain, system_prompt)
+    INSERT INTO custom_personas (id, name, full_name, archetype, color, initial, greeting, domain, system_prompt, category)
     VALUES (
       ${persona.id}, ${persona.name}, ${persona.fullName}, ${persona.archetype},
       ${persona.color}, ${persona.initial}, ${persona.greeting}, ${persona.domain},
-      ${persona.systemPrompt}
+      ${persona.systemPrompt}, ${(persona as Persona & { category?: string }).category ?? '其他'}
     )
     ON CONFLICT (id) DO UPDATE SET
       name = EXCLUDED.name,
@@ -53,7 +55,8 @@ export async function saveCustomPersona(persona: Persona): Promise<void> {
       initial = EXCLUDED.initial,
       greeting = EXCLUDED.greeting,
       domain = EXCLUDED.domain,
-      system_prompt = EXCLUDED.system_prompt
+      system_prompt = EXCLUDED.system_prompt,
+      category = EXCLUDED.category
   `
 }
 
@@ -64,7 +67,7 @@ export async function deleteCustomPersona(id: string): Promise<void> {
 export async function getTheories(): Promise<TheoryRecord[]> {
   try {
     const rows = await sql`
-      SELECT id, name, core_idea, key_principles, application, system_prompt_extension, created_at
+      SELECT id, name, core_idea, key_principles, application, system_prompt_extension, created_at, category
       FROM theories
       ORDER BY created_at DESC
     `
@@ -78,6 +81,7 @@ export async function getTheories(): Promise<TheoryRecord[]> {
       application: r.application ?? '',
       systemPromptExtension: r.system_prompt_extension ?? '',
       createdAt: r.created_at,
+      category: r.category ?? '其他',
     }))
   } catch (err) {
     console.error('[DB] 理論讀取失敗:', err)
@@ -87,11 +91,12 @@ export async function getTheories(): Promise<TheoryRecord[]> {
 
 export async function saveTheory(theory: Omit<TheoryRecord, 'id' | 'createdAt'>): Promise<void> {
   await sql`
-    INSERT INTO theories (name, core_idea, key_principles, application, system_prompt_extension)
+    INSERT INTO theories (name, core_idea, key_principles, application, system_prompt_extension, category)
     VALUES (
       ${theory.name}, ${theory.coreIdea},
       ${JSON.stringify(theory.keyPrinciples)}::jsonb,
-      ${theory.application}, ${theory.systemPromptExtension}
+      ${theory.application}, ${theory.systemPromptExtension},
+      ${theory.category ?? '其他'}
     )
   `
 }

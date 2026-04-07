@@ -79,7 +79,7 @@ export async function POST(req: Request) {
   ])
   const memoryContext = buildMemoryContext(memories)
   const theoryContext = theories.length > 0
-    ? `\n\n【可參考的理論框架】\n${theories.map((t) => `- ${t.name}：${t.coreIdea}\n  應用：${t.systemPromptExtension}`).join('\n')}\n\n在回應中，如果相關，自然地融入以上理論框架。`
+    ? `\n\n【已加入的思維工具箱】\n${theories.map((t) => `- ${t.name}：${t.coreIdea}\n  如何應用：${t.systemPromptExtension}`).join('\n')}\n\n你可以主動使用這些理論來分析問題。嘗試將理論和你自己的核心思維融合，產生更深刻的見解。`
     : ''
 
   const actionInstruction = `\n\n如果你在回應中給了具體可執行的建議，在回應最後另起一行用這個格式標記（最多 1 個）：
