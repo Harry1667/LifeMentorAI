@@ -392,6 +392,19 @@ export function RoundtableView({ mentors, initialQuestion, theoryIds, sessionId:
         style={{ borderColor: 'var(--border-subtle)' }}
       >
         <div className="flex-1 relative">
+          {/* @mention 下拉選單 */}
+          <MentionDropdown
+            inputValue={inputValue}
+            mentors={mentors}
+            onSelect={(name) => {
+              // 找到最後一個 @ 的位置，替換成 @名字
+              const lastAt = inputValue.lastIndexOf('@')
+              if (lastAt >= 0) {
+                setInputValue(inputValue.slice(0, lastAt) + `@${name} `)
+              }
+              inputRef.current?.focus()
+            }}
+          />
           <textarea
             ref={inputRef}
             value={inputValue}
@@ -509,7 +522,6 @@ function MessageRow({
 
 // @提及高亮元件
 function MentionText({ text }: { text: string }) {
-  // 把 @導師名 標記為高亮
   const parts = text.split(/(@\S+)/g)
   return (
     <>
@@ -523,5 +535,66 @@ function MentionText({ text }: { text: string }) {
         )
       )}
     </>
+  )
+}
+
+// @mention 下拉選單：輸入 @ 時顯示可選的人
+function MentionDropdown({
+  inputValue,
+  mentors,
+  onSelect,
+}: {
+  inputValue: string
+  mentors: Persona[]
+  onSelect: (name: string) => void
+}) {
+  // 找到最後一個 @ 後面的文字作為搜尋關鍵字
+  const lastAtIndex = inputValue.lastIndexOf('@')
+  if (lastAtIndex < 0) return null
+
+  // @ 後面不能有空格（有空格表示已經完成 tag）
+  const afterAt = inputValue.slice(lastAtIndex + 1)
+  if (afterAt.includes(' ')) return null
+
+  const query = afterAt.toLowerCase()
+
+  // 可選項目：所有導師 + 「全部」
+  const options = [
+    ...mentors.map((m) => ({ name: m.name, color: m.color, initial: m.initial })),
+    { name: '全部', color: '#d97706', initial: '全' },
+  ]
+
+  const filtered = query
+    ? options.filter((o) => o.name.toLowerCase().includes(query))
+    : options
+
+  if (filtered.length === 0) return null
+
+  return (
+    <div
+      className="absolute bottom-full left-0 right-0 mb-1 rounded-xl py-1 shadow-lg z-50 max-h-48 overflow-y-auto"
+      style={{ backgroundColor: 'var(--bg-primary)', border: '1px solid var(--border-subtle)' }}
+    >
+      {filtered.map((o) => (
+        <button
+          key={o.name}
+          type="button"
+          onMouseDown={(e) => {
+            e.preventDefault()  // 防止 textarea 失焦
+            onSelect(o.name)
+          }}
+          className="w-full flex items-center gap-2.5 px-3 py-2 text-left text-sm hover:bg-white/10 transition-colors"
+          style={{ color: 'var(--text-primary)' }}
+        >
+          <div
+            className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
+            style={{ backgroundColor: o.color }}
+          >
+            {o.initial}
+          </div>
+          <span>@{o.name}</span>
+        </button>
+      ))}
+    </div>
   )
 }
