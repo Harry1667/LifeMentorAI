@@ -1,11 +1,14 @@
 @import "tailwindcss";
 
 :root {
-  /* Life Mentor AI 設計系統 — 深色、溫暖、探秘 */
+  /* Life Mentor AI 設計系統 */
   --bg-primary: #1a1814;
   --bg-chat: #13100d;
   --bg-bubble-mentor: #252017;
-  --bg-sidebar: #131109;
+  --bg-sidebar: #0f0d0a;
+  --bg-user-msg: #2a2520;
+  --bg-input: #1e1b17;
+  --border-input: rgba(232, 228, 223, 0.12);
 
   --text-primary: #e8e4df;
   --text-secondary: #9ca3af;
@@ -14,7 +17,6 @@
   --accent-gold: #d97706;
   --border-subtle: rgba(232, 228, 223, 0.08);
 
-  /* 導師代表色 */
   --mentor-franklin: #2563eb;
   --mentor-feynman: #16a34a;
   --mentor-stoic: #71717a;
@@ -23,29 +25,73 @@
 body {
   background: var(--bg-primary);
   color: var(--text-primary);
-  font-family: 'Georgia', 'Noto Serif TC', serif;
+  font-family: -apple-system, 'SF Pro Text', 'Noto Sans TC', sans-serif;
 }
 
-/* 自定義 scrollbar */
-::-webkit-scrollbar {
-  width: 4px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: var(--border-subtle);
-  border-radius: 2px;
-}
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-subtle); border-radius: 2px; }
 
-/* 刻字動畫 */
+/* 思考中動畫 */
 @keyframes blink {
   0%, 100% { opacity: 1; }
   50% { opacity: 0; }
 }
-
-.typing-dot {
-  animation: blink 1.2s ease-in-out infinite;
-}
+.typing-dot { animation: blink 1.2s ease-in-out infinite; }
 .typing-dot:nth-child(2) { animation-delay: 0.2s; }
 .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+/* Markdown 渲染樣式 */
+.md-content p, .md-content .md-p {
+  margin-bottom: 0.5rem;
+}
+.md-content .md-h2 {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  margin-top: 1rem;
+  margin-bottom: 0.375rem;
+  color: var(--text-primary);
+}
+.md-content .md-h3 {
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin-top: 0.75rem;
+  margin-bottom: 0.25rem;
+  color: var(--accent-gold);
+}
+.md-content .md-li {
+  margin-left: 1.25rem;
+  list-style: disc;
+  margin-bottom: 0.125rem;
+}
+.md-content .md-li.md-ol {
+  list-style: decimal;
+}
+.md-content strong {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.md-content em {
+  font-style: italic;
+  color: var(--text-secondary);
+}
+.md-content .md-code-block {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  margin: 0.5rem 0;
+  overflow-x: auto;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+.md-content .md-inline-code {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.25rem;
+  padding: 0.125rem 0.375rem;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 0.8125rem;
+}

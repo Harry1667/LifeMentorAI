@@ -6,16 +6,14 @@ import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { UserButton } from '@clerk/nextjs'
 import { PERSONAS, DEFAULT_PERSONA_ID } from '@/lib/personas'
 import type { Persona } from '@/lib/types/persona'
-import { MentorSidebar, MobileMentorTabs } from '@/components/MentorSidebar'
+import { Sidebar, MobileNav } from '@/components/MentorSidebar'
 import type { SessionSummary } from '@/components/MentorSidebar'
 import { MessageBubble, TypingBubble } from '@/components/MessageBubble'
 import { ChatInput } from '@/components/ChatInput'
-import { ActionCards } from '@/components/ActionCard'
 import { ActionSuggestion } from '@/components/ActionSuggestion'
 import { RoundtableView } from '@/components/RoundtableView'
 import { DebateMentorPicker } from '@/components/DebateMentorPicker'
 
-// 內建導師的快速行動建議
 const PERSONA_ACTIONS: Record<string, string[]> = {
   franklin: ['如何建立更好的習慣？', '幫我規劃今天的任務', '我拖延症很嚴重怎麼辦'],
   feynman:  ['解釋一個我不懂的概念', '我學不進去怎麼辦', '如何培養好奇心'],
@@ -27,6 +25,9 @@ export default function ChatPage() {
   const [activeMentorId, setActiveMentorId] = useState(DEFAULT_PERSONA_ID)
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [sidebarRefreshKey, setSidebarRefreshKey] = useState(0)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [showMentorDropdown, setShowMentorDropdown] = useState(false)
+
   const personaMap = useMemo(
     () => Object.fromEntries(allPersonas.map((p) => [p.id, p])),
     [allPersonas]
@@ -47,7 +48,6 @@ export default function ChatPage() {
   const [debateMentors, setDebateMentors] = useState<Persona[]>([])
   const [showDebatePicker, setShowDebatePicker] = useState(false)
 
-  // 用 ref 讓 transport 的 body 函數能讀到最新 mentor
   const activeMentorIdRef = useRef(activeMentorId)
   activeMentorIdRef.current = activeMentorId
 
@@ -83,22 +83,16 @@ export default function ChatPage() {
     if (prevStatus.current !== 'ready' && status === 'ready' && messages.length > 0) {
       const sid = activeSessionIdRef.current
       if (sid) {
-        // 更新現有 session
         fetch('/api/conversations', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ sessionId: sid, messages }),
         }).then(() => setSidebarRefreshKey((k) => k + 1)).catch(() => {})
       } else {
-        // 建立新 session
         fetch('/api/conversations/create', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            type: 'chat',
-            mentorIds: [activeMentorId],
-            messages,
-          }),
+          body: JSON.stringify({ type: 'chat', mentorIds: [activeMentorId], messages }),
         })
           .then((r) => r.json())
           .then(({ id }) => {
@@ -112,32 +106,28 @@ export default function ChatPage() {
     prevStatus.current = status
   }, [status, messages, activeMentorId])
 
-  // 切換導師
   function handleSelectMentor(id: string) {
     setDebateQuestion(null)
     setDebateMentors([])
     setActiveSessionId(null)
     setActiveMentorId(id)
     setMessages([])
+    setShowMentorDropdown(false)
   }
 
-  // 選擇對話紀錄
   function handleSelectSession(session: SessionSummary) {
     setDebateQuestion(null)
     setDebateMentors([])
-
     if (session.type === 'roundtable') {
-      // 圓桌群聊：載入到 RoundtableView
       setActiveSessionId(session.id)
       const mentorPersonas = session.mentors
         .map((m) => allPersonas.find((p) => p.name === m.name))
         .filter(Boolean) as Persona[]
       if (mentorPersonas.length >= 2) {
         setDebateMentors(mentorPersonas)
-        setDebateQuestion('') // 空字串表示從歷史載入，不觸發初始發送
+        setDebateQuestion('')
       }
     } else {
-      // 普通對話
       const mentorId = session.mentors[0]
         ? allPersonas.find((p) => p.name === session.mentors[0].name)?.id
         : undefined
@@ -147,7 +137,6 @@ export default function ChatPage() {
     }
   }
 
-  // 刪除對話
   function handleDeleteSession(sessionId: string) {
     if (activeSessionId === sessionId) {
       setActiveSessionId(null)
@@ -157,7 +146,6 @@ export default function ChatPage() {
     }
   }
 
-  // 新對話
   function handleNewChat() {
     setDebateQuestion(null)
     setDebateMentors([])
@@ -165,7 +153,6 @@ export default function ChatPage() {
     setMessages([])
   }
 
-  // 送出訊息
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     const text = inputValue.trim()
@@ -174,20 +161,17 @@ export default function ChatPage() {
     setInputValue('')
   }
 
-  // 行動卡片點擊
   function handleActionSelect(action: string) {
     if (isLoading) return
     sendMessage({ text: action })
   }
 
-  // 圓桌群聊關閉時儲存並刷新 sidebar
   const handleRoundtableClose = useCallback(() => {
     setDebateQuestion(null)
     setDebateMentors([])
     setSidebarRefreshKey((k) => k + 1)
   }, [])
 
-  // 自動捲到底部
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'instant' })
   }, [messages, isLoading])
@@ -195,159 +179,200 @@ export default function ChatPage() {
   const lastMessage = messages[messages.length - 1]
   const showActions = !isLoading && lastMessage?.role === 'assistant'
 
+  const isRoundtable = debateQuestion !== null && debateMentors.length >= 2
+
   return (
-    <div className="flex flex-col h-full" style={{ backgroundColor: 'var(--bg-primary)' }}>
+    <div className="flex flex-col h-full" style={{ backgroundColor: 'var(--bg-chat)' }}>
       <div className="flex flex-1 overflow-hidden">
-        <MentorSidebar
-          activeMentorId={activeMentorId}
+        {/* Sidebar */}
+        <Sidebar
           activeSessionId={activeSessionId}
-          onSelectMentor={handleSelectMentor}
           onSelectSession={handleSelectSession}
           onNewChat={handleNewChat}
+          onNewRoundtable={() => { handleNewChat(); setShowDebatePicker(true) }}
           onDeleteSession={handleDeleteSession}
-          personas={allPersonas}
+          collapsed={sidebarCollapsed}
+          onToggle={() => setSidebarCollapsed((v) => !v)}
           refreshKey={sidebarRefreshKey}
         />
 
-        <main className="flex flex-col flex-1 overflow-hidden" style={{ backgroundColor: 'var(--bg-chat)' }}>
-          {/* 頂部 header */}
-          <header
-            className="flex items-center justify-between px-4 py-3 border-b shrink-0"
-            style={{ borderColor: 'var(--border-subtle)' }}
-          >
-            <div className="flex items-center gap-2">
-              <div
-                className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white"
-                style={{ backgroundColor: persona.color }}
-              >
-                {persona.initial}
-              </div>
-              <div>
-                <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                  {persona.name}
-                </span>
-                <span className="text-xs ml-2" style={{ color: 'var(--text-muted)' }}>
-                  {persona.archetype}
-                </span>
-              </div>
-            </div>
+        {/* 主區域 */}
+        <main className="flex flex-col flex-1 overflow-hidden">
+          {/* Header */}
+          <header className="flex items-center justify-between px-4 py-2.5 shrink-0" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
             <div className="flex items-center gap-3">
-              <button
-                onClick={() => setShowDebatePicker(true)}
-                className="text-xs px-3 py-1.5 rounded-lg transition-opacity hover:opacity-80"
-                style={{ border: '1px solid var(--accent-gold)', color: 'var(--accent-gold)' }}
-              >
-                圓桌群聊
-              </button>
+              <span className="text-sm font-semibold hidden sm:block" style={{ color: 'var(--accent-gold)' }}>
+                Life Mentor AI
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {/* 導師下拉選單 */}
+              {!isRoundtable && (
+                <div className="relative">
+                  <button
+                    onClick={() => setShowMentorDropdown((v) => !v)}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors hover:bg-white/5"
+                    style={{ color: 'var(--text-primary)' }}
+                  >
+                    <div
+                      className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white"
+                      style={{ backgroundColor: persona.color }}
+                    >
+                      {persona.initial}
+                    </div>
+                    <span>{persona.name}</span>
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5">
+                      <path d="M3 5l3 3 3-3" />
+                    </svg>
+                  </button>
+
+                  {showMentorDropdown && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setShowMentorDropdown(false)} />
+                      <div
+                        className="absolute right-0 top-full mt-1 w-56 rounded-xl py-1 z-50 shadow-lg"
+                        style={{ backgroundColor: 'var(--bg-primary)', border: '1px solid var(--border-subtle)' }}
+                      >
+                        {allPersonas.map((p) => (
+                          <button
+                            key={p.id}
+                            onClick={() => handleSelectMentor(p.id)}
+                            className={`w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors hover:bg-white/5 ${
+                              p.id === activeMentorId ? 'bg-white/10' : ''
+                            }`}
+                            style={{ color: 'var(--text-primary)' }}
+                          >
+                            <div
+                              className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
+                              style={{ backgroundColor: p.color }}
+                            >
+                              {p.initial}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-sm">{p.name}</div>
+                              <div className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>{p.archetype}</div>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
               <UserButton />
             </div>
           </header>
 
-          {/* 圓桌群聊模式 */}
-          {debateQuestion !== null && debateMentors.length >= 2 && (
+          {/* 圓桌群聊 */}
+          {isRoundtable && (
             <RoundtableView
-              initialQuestion={debateQuestion}
+              initialQuestion={debateQuestion!}
               mentors={debateMentors}
               sessionId={activeSessionId}
               onClose={handleRoundtableClose}
             />
           )}
 
-          {/* 普通對話模式 */}
-          {debateQuestion === null && <div className="flex-1 overflow-y-auto px-4 py-6 space-y-4">
-            {/* 空狀態 */}
-            {messages.length === 0 && !isLoading && (
-              <div className="flex flex-col items-center justify-center h-full gap-6 pb-20">
-                <div
-                  className="w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold text-white"
-                  style={{ backgroundColor: persona.color }}
-                >
-                  {persona.initial}
-                </div>
-                <p
-                  className="text-center max-w-sm text-base leading-relaxed"
-                  style={{ color: 'var(--text-secondary)' }}
-                >
-                  {persona.greeting}
-                </p>
-                <div className="flex flex-wrap gap-2 justify-center">
-                  {(PERSONA_ACTIONS[activeMentorId] ?? []).map((action) => (
-                    <button
-                      key={action}
-                      onClick={() => handleActionSelect(action)}
-                      className="px-3 py-1.5 rounded-lg text-sm transition-opacity hover:opacity-70"
-                      style={{ border: `1px solid ${persona.color}`, color: persona.color }}
-                    >
-                      {action}
-                    </button>
-                  ))}
+          {/* 普通對話 */}
+          {!isRoundtable && (
+            <>
+              <div className="flex-1 overflow-y-auto">
+                <div className="max-w-3xl mx-auto px-4 py-6 space-y-5">
+                  {/* 空狀態 */}
+                  {messages.length === 0 && !isLoading && (
+                    <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6">
+                      <div
+                        className="w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold text-white"
+                        style={{ backgroundColor: persona.color }}
+                      >
+                        {persona.initial}
+                      </div>
+                      <div className="text-center">
+                        <h2 className="text-base font-medium mb-1" style={{ color: 'var(--text-primary)' }}>
+                          {persona.name}
+                        </h2>
+                        <p className="text-sm max-w-sm" style={{ color: 'var(--text-muted)' }}>
+                          {persona.greeting}
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 max-w-md w-full">
+                        {(PERSONA_ACTIONS[activeMentorId] ?? []).map((action) => (
+                          <button
+                            key={action}
+                            onClick={() => handleActionSelect(action)}
+                            className="px-4 py-3 rounded-xl text-sm text-left transition-colors hover:bg-white/5"
+                            style={{
+                              border: '1px solid var(--border-subtle)',
+                              color: 'var(--text-secondary)',
+                            }}
+                          >
+                            {action}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 對話訊息 */}
+                  {messages.map((msg, i) => {
+                    const textContent = msg.parts
+                      .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
+                      .map((p) => p.text)
+                      .join('')
+
+                    const isLastStreaming =
+                      isLoading && i === messages.length - 1 && msg.role === 'assistant'
+
+                    return (
+                      <MessageBubble
+                        key={msg.id}
+                        role={msg.role as 'user' | 'assistant'}
+                        content={textContent}
+                        persona={persona}
+                        isStreaming={isLastStreaming}
+                      />
+                    )
+                  })}
+
+                  {isLoading && lastMessage?.role === 'user' && (
+                    <TypingBubble persona={persona} />
+                  )}
+
+                  {/* 行動建議 */}
+                  {showActions && (() => {
+                    const lastText = lastMessage.parts
+                      .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
+                      .map((p) => p.text).join('')
+                    const actionMatch = lastText.match(/【行動】(.+)/)
+                    if (!actionMatch) return null
+                    return (
+                      <ActionSuggestion
+                        advice={actionMatch[1].trim()}
+                        mentorSource={persona.name}
+                        accentColor={persona.color}
+                      />
+                    )
+                  })()}
+
+                  <div ref={bottomRef} />
                 </div>
               </div>
-            )}
 
-            {/* 對話訊息 */}
-            {messages.map((msg, i) => {
-              const textContent = msg.parts
-                .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
-                .map((p) => p.text)
-                .join('')
-
-              const isLastStreaming =
-                isLoading && i === messages.length - 1 && msg.role === 'assistant'
-
-              return (
-                <MessageBubble
-                  key={msg.id}
-                  role={msg.role as 'user' | 'assistant'}
-                  content={textContent}
-                  persona={persona}
-                  isStreaming={isLastStreaming}
-                />
-              )
-            })}
-
-            {isLoading && lastMessage?.role === 'user' && (
-              <TypingBubble persona={persona} />
-            )}
-
-            {/* 行動建議（從最後一條 assistant 回應中解析） */}
-            {showActions && (() => {
-              const lastText = lastMessage.parts
-                .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
-                .map((p) => p.text).join('')
-              const actionMatch = lastText.match(/【行動】(.+)/)
-              if (!actionMatch) return null
-              return (
-                <ActionSuggestion
-                  advice={actionMatch[1].trim()}
-                  mentorSource={persona.name}
-                  accentColor={persona.color}
-                />
-              )
-            })()}
-
-            {showActions && (
-              <ActionCards
-                actions={PERSONA_ACTIONS[activeMentorId] ?? []}
-                onSelect={handleActionSelect}
+              <ChatInput
+                value={inputValue}
+                onChange={setInputValue}
+                onSubmit={handleSubmit}
+                onRoundtable={() => setShowDebatePicker(true)}
+                isLoading={isLoading}
                 accentColor={persona.color}
               />
-            )}
-
-            <div ref={bottomRef} />
-          </div>}
-
-          {debateQuestion === null && <ChatInput
-            value={inputValue}
-            onChange={setInputValue}
-            onSubmit={handleSubmit}
-            isLoading={isLoading}
-            accentColor={persona.color}
-          />}
+            </>
+          )}
         </main>
       </div>
 
-      <MobileMentorTabs activeMentorId={activeMentorId} onSelectMentor={handleSelectMentor} personas={allPersonas} />
+      <MobileNav />
 
       {showDebatePicker && (
         <DebateMentorPicker
