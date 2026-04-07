@@ -467,7 +467,7 @@ function MessageRow({
                 : { backgroundColor: 'var(--bg-bubble-mentor)', color: 'var(--text-primary)' }
           }
         >
-          {msg.content}
+          <MentionText text={msg.content} />
 
           {/* 回覆按鈕（hover 時顯示） */}
           {!isUser && !isLoading && msg.content && (
@@ -486,5 +486,24 @@ function MessageRow({
       {/* 用戶佔位 */}
       {isUser && <div className="w-7 shrink-0" />}
     </div>
+  )
+}
+
+// @提及高亮元件
+function MentionText({ text }: { text: string }) {
+  // 把 @導師名 標記為高亮
+  const parts = text.split(/(@\S+)/g)
+  return (
+    <>
+      {parts.map((part, i) =>
+        part.startsWith('@') ? (
+          <span key={i} className="font-medium" style={{ color: 'var(--accent-gold)' }}>
+            {part}
+          </span>
+        ) : (
+          <span key={i}>{part}</span>
+        )
+      )}
+    </>
   )
 }

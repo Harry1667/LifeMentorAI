@@ -57,10 +57,13 @@ export interface RoundtableMessage {
 interface RequestBody {
   messages: RoundtableMessage[]
   mentorIds: string[]
-  replyToMentorId?: string      // 回覆特定導師
-  mentionedMentorIds?: string[] // @提及的導師
-  synthesize?: boolean          // 請主持人總結
+  replyToMentorId?: string
+  mentionedMentorIds?: string[]
+  synthesize?: boolean
 }
+
+// 多 Agent 圓桌對話：每個導師獨立思考，短回應，互相討論
+const MAX_TURNS = 6
 
 export async function POST(req: Request) {
   const { userId } = await auth()
@@ -92,78 +95,80 @@ export async function POST(req: Request) {
     ? `\n\n【可參考的理論框架】\n${theories.map((t) => `- ${t.name}：${t.coreIdea}\n  應用：${t.systemPromptExtension}`).join('\n')}\n\n如果相關，自然地融入以上理論框架。`
     : ''
 
-  // 把對話歷史格式化成文字
+  // 把歷史對話格式化
   function formatHistory(msgs: RoundtableMessage[]): string {
     return msgs.map((m) => {
-      const replyPrefix = m.replyToId
-        ? (() => {
-            const target = msgs.find((mm) => mm.id === m.replyToId)
-            return target ? `（回覆 ${target.mentorName ?? '用戶'}）` : ''
-          })()
-        : ''
-      if (m.role === 'user') return `用戶${replyPrefix}：${m.content}`
-      return `${m.mentorName}${replyPrefix}：${m.content}`
-    }).join('\n\n')
+      if (m.role === 'user') return `用戶：${m.content}`
+      return `${m.mentorName}：${m.content}`
+    }).join('\n')
   }
 
   const history = formatHistory(messages)
 
-  // 決定哪些導師要回應
-  let respondingMentorIds: string[]
+  // 其他導師名字列表（給 prompt 用）
+  function otherMentorNames(currentId: string): string {
+    return [...allPersonaMap.values()]
+      .filter((m) => m.id !== currentId)
+      .map((m) => m.name)
+      .join('、')
+  }
 
-  if (synthesize) {
-    respondingMentorIds = [] // 只有主持人
-  } else if (replyToMentorId) {
-    // 回覆特定導師 → 該導師先回，其他導師可補充
-    respondingMentorIds = [
-      replyToMentorId,
-      ...mentorIds.filter((id) => id !== replyToMentorId),
-    ]
+  // 決定第一輪發言順序
+  let turnOrder: string[]
+  if (replyToMentorId) {
+    turnOrder = [replyToMentorId, ...mentorIds.filter((id) => id !== replyToMentorId)]
   } else if (mentionedMentorIds && mentionedMentorIds.length > 0) {
-    // @提及 → 被提及的先回，其他可補充
     const mentioned = mentionedMentorIds.filter((id) => allPersonaMap.has(id))
     const rest = mentorIds.filter((id) => !mentioned.includes(id))
-    respondingMentorIds = [...mentioned, ...rest]
+    turnOrder = [...mentioned, ...rest]
   } else {
-    // 預設全部回應
-    respondingMentorIds = [...mentorIds]
+    turnOrder = [...mentorIds]
+  }
+
+  // 建立最多 2 輪的發言序列
+  const fullTurnOrder: string[] = []
+  for (let round = 0; round < 2; round++) {
+    for (const id of turnOrder) fullTurnOrder.push(id)
   }
 
   const encoder = new TextEncoder()
   const stream = new ReadableStream({
     async start(controller) {
-      // 導師回應
-      const newResponses: string[] = []
+      // 本輪新產生的對話
+      const thisRoundMsgs: { mentorName: string; text: string }[] = []
+      let turnCount = 0
+      let consecutiveSkips = 0
 
-      for (let i = 0; i < respondingMentorIds.length; i++) {
-        const mentorId = respondingMentorIds[i]
+      for (let i = 0; i < fullTurnOrder.length; i++) {
+        if (turnCount >= MAX_TURNS) break
+        // 連續跳過次數 >= 導師數量 → 大家都沒話說了
+        if (consecutiveSkips >= mentorIds.length) break
+
+        const mentorId = fullTurnOrder[i]
         const mentor = allPersonaMap.get(mentorId)
         if (!mentor) continue
 
-        const isPrimary = i === 0 // 第一位是主要回應者
-        const othersAlreadySaid = newResponses.length > 0
-          ? `\n\n【本輪其他導師已說】\n${newResponses.join('\n\n')}`
-          : ''
+        const isFirst = thisRoundMsgs.length === 0
+        const recentDiscussion = thisRoundMsgs.map((r) => `${r.mentorName}：${r.text}`).join('\n')
 
-        // 非主要回應者：可以選擇不回應
-        const skipInstruction = !isPrimary
-          ? `\n\n如果你覺得前面的導師已經充分回應了，而你沒有不同觀點要補充，只需回覆「（點頭）」即可。不要為了說話而說話。`
-          : ''
+        // 圓桌對話 prompt
+        const roundtableRules = `
+你正在一個圓桌群聊中，和其他導師（${otherMentorNames(mentor.id)}）一起與用戶交談。
 
-        const mentionInstruction = mentionedMentorIds?.includes(mentorId)
-          ? '\n\n用戶特別點名了你，請務必回應。'
-          : ''
+對話規則：
+- 像群組聊天一樣自然說話，1-3 句話，最多 60 字
+- 如果你在回應另一個導師的觀點，用 @導師名 開頭（例如：@費曼 我不同意...）
+- 如果你直接對用戶說話或給結論，不需要加 @
+- 可以同意、反駁、補充、追問其他導師，像真人一樣互動
+- 如果前面的討論已經充分表達了你的想法，或你沒有新觀點，只回覆「（跳過）」
+- 不要寫長篇大論。你在聊天，不是在寫文章
+- 適時向用戶提出反問，幫助他們思考`
 
-        const replyInstruction = replyToMentorId === mentorId
-          ? '\n\n用戶正在回覆你之前說的話，請直接延續那個話題回應。'
-          : ''
+        const systemPrompt = mentor.systemPrompt + memoryContext + theoryContext + roundtableRules
 
-        const systemPrompt = mentor.systemPrompt + memoryContext + theoryContext +
-          `\n\n你正在一個圓桌群聊中，與其他導師和用戶一起討論。像群組聊天一樣自然對話。
-適時向用戶提出反問，幫助他們深入思考。保持 100-200 字。` +
-          skipInstruction + mentionInstruction + replyInstruction
-
-        const prompt = `對話紀錄：\n${history}${othersAlreadySaid}\n\n請以 ${mentor.name} 的角度回應。`
+        const prompt = isFirst
+          ? `對話紀錄：\n${history}\n\n以 ${mentor.name} 的角度回應用戶最新的發言。`
+          : `對話紀錄：\n${history}\n\n本輪討論：\n${recentDiscussion}\n\n以 ${mentor.name} 的角度加入討論。可以回應其他導師，也可以對用戶說話。如果沒有新觀點就跳過。`
 
         const meta = {
           mentorId: mentor.id,
@@ -181,26 +186,34 @@ export async function POST(req: Request) {
             model: proxy('claude-sonnet-4-6'),
             system: systemPrompt,
             prompt,
-            maxOutputTokens: 400,
+            maxOutputTokens: 120,
           })
 
+          const trimmed = fullText.trim()
+
+          // 判斷是否跳過
+          if (trimmed === '（跳過）' || trimmed === '（點頭）' || trimmed === '') {
+            controller.enqueue(encoder.encode(
+              `data: ${JSON.stringify({ type: 'step_skip', mentorId: mentor.id })}\n\n`
+            ))
+            consecutiveSkips++
+            continue
+          }
+
+          // 有實質回應
+          consecutiveSkips = 0
+          turnCount++
+
           controller.enqueue(encoder.encode(
-            `data: ${JSON.stringify({ type: 'step_delta', mentorId: mentor.id, delta: fullText })}\n\n`
+            `data: ${JSON.stringify({ type: 'step_delta', mentorId: mentor.id, delta: trimmed })}\n\n`
           ))
 
           controller.enqueue(encoder.encode(
             `data: ${JSON.stringify({ type: 'step_done', mentorId: mentor.id })}\n\n`
           ))
 
-          // 如果導師選擇跳過，不加到記錄
-          if (fullText.trim() !== '（點頭）') {
-            newResponses.push(`${mentor.name}：${fullText}`)
-          } else {
-            // 送一個 skip 事件讓前端知道
-            controller.enqueue(encoder.encode(
-              `data: ${JSON.stringify({ type: 'step_skip', mentorId: mentor.id })}\n\n`
-            ))
-          }
+          thisRoundMsgs.push({ mentorName: mentor.name, text: trimmed })
+
         } catch (err) {
           console.error(`[Roundtable] ${mentor.name} 回應失敗:`, err)
           controller.enqueue(encoder.encode(
