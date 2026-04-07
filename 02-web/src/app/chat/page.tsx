@@ -316,10 +316,16 @@ export default function ChatPage() {
 
                   {/* 對話訊息 */}
                   {messages.map((msg, i) => {
-                    const textContent = msg.parts
-                      .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
-                      .map((p) => p.text)
-                      .join('')
+                    // 相容兩種格式：UIMessage（parts）和舊格式（content）
+                    let textContent = ''
+                    if (msg.parts && msg.parts.length > 0) {
+                      textContent = msg.parts
+                        .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
+                        .map((p) => p.text)
+                        .join('')
+                    } else if ((msg as unknown as { content?: string }).content) {
+                      textContent = (msg as unknown as { content: string }).content
+                    }
 
                     const isLastStreaming =
                       isLoading && i === messages.length - 1 && msg.role === 'assistant'
@@ -341,9 +347,14 @@ export default function ChatPage() {
 
                   {/* 行動建議 */}
                   {showActions && (() => {
-                    const lastText = lastMessage.parts
-                      .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
-                      .map((p) => p.text).join('')
+                    let lastText = ''
+                    if (lastMessage.parts && lastMessage.parts.length > 0) {
+                      lastText = lastMessage.parts
+                        .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
+                        .map((p) => p.text).join('')
+                    } else if ((lastMessage as unknown as { content?: string }).content) {
+                      lastText = (lastMessage as unknown as { content: string }).content
+                    }
                     const actionMatch = lastText.match(/【行動】(.+)/)
                     if (!actionMatch) return null
                     return (

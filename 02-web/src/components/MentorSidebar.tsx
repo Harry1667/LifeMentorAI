@@ -180,16 +180,24 @@ export function Sidebar({
                 </div>
 
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5">
-                    {s.type === 'roundtable' && (
+                  {s.type === 'roundtable' && (
+                    <div className="flex items-center gap-1 mb-0.5">
                       <span className="text-[9px] px-1 py-0.5 rounded shrink-0" style={{ backgroundColor: 'var(--accent-gold)', color: 'white' }}>
                         圓桌
                       </span>
-                    )}
-                    <span className="text-xs truncate block" style={{ color: 'var(--text-primary)' }}>
-                      {s.title}
+                      <span className="text-[10px] truncate" style={{ color: 'var(--text-muted)' }}>
+                        {s.mentors.map((m) => m.name).join('、')}
+                      </span>
+                    </div>
+                  )}
+                  {s.type === 'chat' && s.mentors[0] && (
+                    <span className="text-[10px] block mb-0.5" style={{ color: 'var(--text-muted)' }}>
+                      {s.mentors[0].name}
                     </span>
-                  </div>
+                  )}
+                  <span className="text-xs truncate block" style={{ color: 'var(--text-primary)' }}>
+                    {s.title}
+                  </span>
                 </div>
 
                 {/* 刪除 */}

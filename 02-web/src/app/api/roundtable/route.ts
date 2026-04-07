@@ -1,5 +1,5 @@
 import { auth } from '@clerk/nextjs/server'
-import { streamText } from 'ai'
+import { generateText } from 'ai'
 import { proxy } from '@/lib/ai-proxy'
 import { PERSONAS } from '@/lib/personas'
 import { getCustomPersonas, getTheories } from '@/lib/supabase/admin'
@@ -177,20 +177,16 @@ export async function POST(req: Request) {
             `data: ${JSON.stringify({ type: 'step_start', meta })}\n\n`
           ))
 
-          const result = streamText({
+          const { text: fullText } = await generateText({
             model: proxy('claude-sonnet-4-6'),
             system: systemPrompt,
             prompt,
             maxOutputTokens: 400,
           })
 
-          let fullText = ''
-          for await (const chunk of result.textStream) {
-            fullText += chunk
-            controller.enqueue(encoder.encode(
-              `data: ${JSON.stringify({ type: 'step_delta', mentorId: mentor.id, delta: chunk })}\n\n`
-            ))
-          }
+          controller.enqueue(encoder.encode(
+            `data: ${JSON.stringify({ type: 'step_delta', mentorId: mentor.id, delta: fullText })}\n\n`
+          ))
 
           controller.enqueue(encoder.encode(
             `data: ${JSON.stringify({ type: 'step_done', mentorId: mentor.id })}\n\n`
@@ -227,7 +223,7 @@ export async function POST(req: Request) {
             `data: ${JSON.stringify({ type: 'synthesis_start', meta: synthMeta })}\n\n`
           ))
 
-          const result = streamText({
+          const { text: synthText } = await generateText({
             model: proxy('claude-sonnet-4-6'),
             system: `你是圓桌討論的主持人。綜合所有導師和用戶的對話，找出共識與分歧，給出均衡的建議。
 用繁體中文回應，200-300 字。不偏袒任何導師。
@@ -239,11 +235,9 @@ ${memoryContext}`,
             maxOutputTokens: 500,
           })
 
-          for await (const chunk of result.textStream) {
-            controller.enqueue(encoder.encode(
-              `data: ${JSON.stringify({ type: 'synthesis_delta', mentorId: '_synthesizer', delta: chunk })}\n\n`
-            ))
-          }
+          controller.enqueue(encoder.encode(
+            `data: ${JSON.stringify({ type: 'synthesis_delta', mentorId: '_synthesizer', delta: synthText })}\n\n`
+          ))
 
           controller.enqueue(encoder.encode(
             `data: ${JSON.stringify({ type: 'synthesis_done', mentorId: '_synthesizer' })}\n\n`

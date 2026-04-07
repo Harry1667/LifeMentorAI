@@ -43,6 +43,20 @@ export function RoundtableView({ mentors, initialQuestion, sessionId: initialSes
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, isLoading])
 
+  // 從 DB 載入歷史訊息（點 sidebar 圓桌紀錄時）
+  useEffect(() => {
+    if (initialSessionId && !initialQuestion) {
+      fetch(`/api/conversations?sessionId=${initialSessionId}`)
+        .then((r) => r.json())
+        .then((msgs) => {
+          if (Array.isArray(msgs) && msgs.length > 0) {
+            setMessages(msgs as RoundtableMessage[])
+          }
+        })
+        .catch(() => {})
+    }
+  }, [initialSessionId, initialQuestion])
+
   // 回應完成後自動儲存到 DB
   const prevLoading = useRef(isLoading)
   useEffect(() => {
