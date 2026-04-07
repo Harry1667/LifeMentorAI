@@ -57,6 +57,7 @@ export interface RoundtableMessage {
 interface RequestBody {
   messages: RoundtableMessage[]
   mentorIds: string[]
+  theoryIds?: string[]
   replyToMentorId?: string
   mentionedMentorIds?: string[]
   synthesize?: boolean
@@ -71,7 +72,7 @@ export async function POST(req: Request) {
   if (!checkRateLimit(userId)) return new Response('Too Many Requests', { status: 429 })
 
   const body: RequestBody = await req.json()
-  const { messages, mentorIds, replyToMentorId, mentionedMentorIds, synthesize } = body
+  const { messages, mentorIds, theoryIds, replyToMentorId, mentionedMentorIds, synthesize } = body
 
   if (!messages || messages.length === 0 || !mentorIds || mentorIds.length < 2) {
     return new Response('需要對話紀錄和至少 2 位導師', { status: 400 })
@@ -85,11 +86,14 @@ export async function POST(req: Request) {
     if (p) allPersonaMap.set(id, p)
   }
 
-  // 載入記憶 + 理論
-  const [memories, theories] = await Promise.all([
+  // 載入記憶 + 理論（如果有指定 theoryIds 就只用選中的）
+  const [memories, allTheories] = await Promise.all([
     getUserMemories(userId),
     getTheories(),
   ])
+  const theories = theoryIds && theoryIds.length > 0
+    ? allTheories.filter((t) => theoryIds.includes(t.id))
+    : allTheories
   const memoryContext = buildMemoryContext(memories)
   const theoryContext = theories.length > 0
     ? `\n\n【已加入的思維工具箱】\n${theories.map((t) => `- ${t.name}：${t.coreIdea}\n  如何應用：${t.systemPromptExtension}`).join('\n')}\n\n你可以主動使用這些理論框架來分析問題。如果某個理論和你自己的核心思維互補，嘗試將它們融合在一起，產生更深刻的觀點。例如：你可以結合你的專長和上面的理論，提出獨到的見解。`

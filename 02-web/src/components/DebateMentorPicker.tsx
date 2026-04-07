@@ -1,11 +1,18 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { Persona } from '@/lib/types/persona'
+
+interface TheoryOption {
+  id: string
+  name: string
+  coreIdea: string
+  category: string
+}
 
 interface DebateMentorPickerProps {
   personas: Persona[]
-  onStart: (question: string, selectedMentors: Persona[]) => void
+  onStart: (question: string, selectedMentors: Persona[], theoryIds: string[]) => void
   onCancel: () => void
   initialQuestion?: string
 }
@@ -15,15 +22,31 @@ export function DebateMentorPicker({ personas, onStart, onCancel, initialQuestio
   const [selectedIds, setSelectedIds] = useState<Set<string>>(
     new Set(personas.slice(0, 3).map((p) => p.id))
   )
+  const [theories, setTheories] = useState<TheoryOption[]>([])
+  const [selectedTheoryIds, setSelectedTheoryIds] = useState<Set<string>>(new Set())
+
+  // 載入理論列表
+  useEffect(() => {
+    fetch('/api/admin/theories')
+      .then((r) => r.json())
+      .then((data: TheoryOption[]) => setTheories(data))
+      .catch(() => {})
+  }, [])
 
   function toggleMentor(id: string) {
     setSelectedIds((prev) => {
       const next = new Set(prev)
-      if (next.has(id)) {
-        next.delete(id)
-      } else {
-        next.add(id)
-      }
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function toggleTheory(id: string) {
+    setSelectedTheoryIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
       return next
     })
   }
@@ -32,13 +55,21 @@ export function DebateMentorPicker({ personas, onStart, onCancel, initialQuestio
     const q = question.trim()
     if (!q || selectedIds.size < 2) return
     const selected = personas.filter((p) => selectedIds.has(p.id))
-    onStart(q, selected)
+    onStart(q, selected, [...selectedTheoryIds])
   }
+
+  // 按分類分組理論
+  const groupedTheories = theories.reduce<Record<string, TheoryOption[]>>((acc, t) => {
+    const cat = t.category || '其他'
+    if (!acc[cat]) acc[cat] = []
+    acc[cat].push(t)
+    return acc
+  }, {})
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
       <div
-        className="w-full max-w-md mx-4 rounded-xl p-6 space-y-5"
+        className="w-full max-w-lg mx-4 rounded-xl p-6 space-y-5 max-h-[85vh] overflow-y-auto"
         style={{ backgroundColor: 'var(--bg-primary)', border: '1px solid var(--border-subtle)' }}
       >
         <h2 className="text-base font-medium" style={{ color: 'var(--accent-gold)' }}>
@@ -90,12 +121,57 @@ export function DebateMentorPicker({ personas, onStart, onCancel, initialQuestio
                   >
                     {p.initial}
                   </div>
-                  <span className="truncate">{p.name}</span>
+                  <div className="min-w-0">
+                    <span className="truncate block">{p.name}</span>
+                    {p.category && (
+                      <span className="text-[10px] block" style={{ color: 'var(--text-muted)' }}>{p.category}</span>
+                    )}
+                  </div>
                 </button>
               )
             })}
           </div>
         </div>
+
+        {/* 理論選擇 */}
+        {theories.length > 0 && (
+          <div>
+            <label className="text-xs block mb-2" style={{ color: 'var(--text-muted)' }}>
+              加入理論框架（可選）
+            </label>
+            <div className="space-y-3">
+              {Object.entries(groupedTheories).map(([category, items]) => (
+                <div key={category}>
+                  <span className="text-[10px] uppercase tracking-wider mb-1 block" style={{ color: 'var(--text-muted)' }}>
+                    {category}
+                  </span>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {items.map((t) => {
+                      const selected = selectedTheoryIds.has(t.id)
+                      return (
+                        <button
+                          key={t.id}
+                          onClick={() => toggleTheory(t.id)}
+                          className="flex flex-col px-3 py-2 rounded-lg text-left transition-all text-xs"
+                          style={{
+                            backgroundColor: selected ? 'var(--accent-gold)15' : 'var(--bg-chat)',
+                            border: `1px solid ${selected ? 'var(--accent-gold)' : 'var(--border-subtle)'}`,
+                            color: selected ? 'var(--text-primary)' : 'var(--text-secondary)',
+                          }}
+                        >
+                          <span className="font-medium">{t.name}</span>
+                          <span className="text-[10px] line-clamp-1 mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                            {t.coreIdea}
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* 按鈕 */}
         <div className="flex justify-end gap-2 pt-2">
@@ -112,7 +188,7 @@ export function DebateMentorPicker({ personas, onStart, onCancel, initialQuestio
             className="px-4 py-2 rounded-lg text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-30"
             style={{ backgroundColor: 'var(--accent-gold)' }}
           >
-            開始辯論（{selectedIds.size} 位導師）
+            開始辯論（{selectedIds.size} 位導師{selectedTheoryIds.size > 0 ? ` + ${selectedTheoryIds.size} 理論` : ''}）
           </button>
         </div>
       </div>

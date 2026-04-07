@@ -18,6 +18,7 @@ interface RoundtableMessage {
 interface RoundtableViewProps {
   mentors: Persona[]
   initialQuestion: string
+  theoryIds?: string[]
   sessionId?: string | null
   onClose: () => void
 }
@@ -25,7 +26,7 @@ interface RoundtableViewProps {
 let msgIdCounter = 0
 function nextId() { return `rt_${Date.now()}_${++msgIdCounter}` }
 
-export function RoundtableView({ mentors, initialQuestion, sessionId: initialSessionId, onClose }: RoundtableViewProps) {
+export function RoundtableView({ mentors, initialQuestion, theoryIds, sessionId: initialSessionId, onClose }: RoundtableViewProps) {
   const [messages, setMessages] = useState<RoundtableMessage[]>([])
   const [inputValue, setInputValue] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -230,6 +231,7 @@ export function RoundtableView({ mentors, initialQuestion, sessionId: initialSes
         body: JSON.stringify({
           messages: newMessages,
           mentorIds,
+          theoryIds: theoryIds ?? [],
           replyToMentorId: options?.replyToMentorId,
           mentionedMentorIds: options?.mentionedMentorIds,
           synthesize: options?.synthesize,

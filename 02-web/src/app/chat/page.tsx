@@ -46,6 +46,7 @@ export default function ChatPage() {
   const [inputValue, setInputValue] = useState('')
   const [debateQuestion, setDebateQuestion] = useState<string | null>(null)
   const [debateMentors, setDebateMentors] = useState<Persona[]>([])
+  const [debateTheoryIds, setDebateTheoryIds] = useState<string[]>([])
   const [showDebatePicker, setShowDebatePicker] = useState(false)
 
   const activeMentorIdRef = useRef(activeMentorId)
@@ -108,7 +109,7 @@ export default function ChatPage() {
 
   function handleSelectMentor(id: string) {
     setDebateQuestion(null)
-    setDebateMentors([])
+    setDebateMentors([]); setDebateTheoryIds([])
     setActiveSessionId(null)
     setActiveMentorId(id)
     setMessages([])
@@ -117,7 +118,7 @@ export default function ChatPage() {
 
   function handleSelectSession(session: SessionSummary) {
     setDebateQuestion(null)
-    setDebateMentors([])
+    setDebateMentors([]); setDebateTheoryIds([])
     if (session.type === 'roundtable') {
       setActiveSessionId(session.id)
       const mentorPersonas = session.mentors
@@ -142,13 +143,13 @@ export default function ChatPage() {
       setActiveSessionId(null)
       setMessages([])
       setDebateQuestion(null)
-      setDebateMentors([])
+      setDebateMentors([]); setDebateTheoryIds([])
     }
   }
 
   function handleNewChat() {
     setDebateQuestion(null)
-    setDebateMentors([])
+    setDebateMentors([]); setDebateTheoryIds([])
     setActiveSessionId(null)
     setMessages([])
   }
@@ -168,7 +169,7 @@ export default function ChatPage() {
 
   const handleRoundtableClose = useCallback(() => {
     setDebateQuestion(null)
-    setDebateMentors([])
+    setDebateMentors([]); setDebateTheoryIds([])
     setSidebarRefreshKey((k) => k + 1)
   }, [])
 
@@ -269,6 +270,7 @@ export default function ChatPage() {
             <RoundtableView
               initialQuestion={debateQuestion!}
               mentors={debateMentors}
+              theoryIds={debateTheoryIds}
               sessionId={activeSessionId}
               onClose={handleRoundtableClose}
             />
@@ -390,11 +392,12 @@ export default function ChatPage() {
           personas={allPersonas}
           initialQuestion={inputValue.trim()}
           onCancel={() => setShowDebatePicker(false)}
-          onStart={(q, mentors) => {
+          onStart={(q, mentors, theoryIds) => {
             setShowDebatePicker(false)
             setInputValue('')
             setActiveSessionId(null)
             setDebateMentors(mentors)
+            setDebateTheoryIds(theoryIds)
             setDebateQuestion(q)
           }}
         />
