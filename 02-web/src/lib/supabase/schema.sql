@@ -1,4 +1,4 @@
--- Life Mentor AI — Supabase Schema
+-- Mentora — Supabase Schema
 -- 在 Supabase Dashboard > SQL Editor 執行
 
 -- 用戶記憶表

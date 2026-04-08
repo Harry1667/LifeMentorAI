@@ -225,7 +225,7 @@ export default function ChatPage() {
           <header className="flex items-center justify-between px-4 py-2.5 shrink-0" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
             <div className="flex items-center gap-3">
               <span className="text-sm font-semibold hidden sm:block" style={{ color: 'var(--accent-gold)' }}>
-                Life Mentor AI
+                Mentora
               </span>
             </div>
 

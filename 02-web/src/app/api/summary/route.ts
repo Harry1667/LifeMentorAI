@@ -83,7 +83,7 @@ export async function POST() {
   try {
     const { text } = await generateText({
       model: proxy('claude-sonnet-4-6'),
-      system: `你是 Life Mentor AI 的成長摘要助理。用溫暖、鼓勵但誠實的語氣撰寫每週成長報告。用繁體中文。`,
+      system: `你是 Mentora 的成長摘要助理。用溫暖、鼓勵但誠實的語氣撰寫每週成長報告。用繁體中文。`,
       prompt: `請根據以下資料，產生本週成長摘要。
 
 本週對話紀錄：

@@ -9,7 +9,7 @@ export default function SignInPage() {
       <div className="flex flex-col items-center gap-6">
         <div className="text-center">
           <h1 className="text-xl font-semibold" style={{ color: 'var(--accent-gold)' }}>
-            Life Mentor AI
+            Mentora
           </h1>
           <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
             你的私人圓桌智者

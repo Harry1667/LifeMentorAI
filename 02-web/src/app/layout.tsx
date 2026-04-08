@@ -3,7 +3,7 @@ import { ClerkProvider } from '@clerk/nextjs'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Life Mentor AI',
+  title: 'Mentora',
   description: '你的私人圓桌智者',
 }
 
