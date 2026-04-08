@@ -43,12 +43,12 @@ export default function AdminPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type, name }),
       })
-      if (!res.ok) throw new Error()
       const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'AI 分析失敗')
       if (type === 'mentor') setMentorPreview(data)
       else setTheoryPreview(data)
-    } catch {
-      setError('AI 分析失敗，請重試')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'AI 分析失敗，請重試')
     } finally {
       setAnalyzing(false)
     }

@@ -63,38 +63,33 @@ export function RoundtableView({ mentors, initialQuestion, theoryIds, sessionId:
     }
   }, [initialSessionId, initialQuestion])
 
-  // 回應完成後自動儲存到 DB
-  const prevLoading = useRef(isLoading)
-  useEffect(() => {
-    if (prevLoading.current && !isLoading && messages.length > 0) {
-      const sid = sessionIdRef.current
-      if (sid) {
-        // 更新現有 session
-        fetch('/api/conversations', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sessionId: sid, messages }),
-        }).catch(() => {})
-      } else {
-        // 建立新 session
-        const title = messages.find((m) => m.role === 'user')?.content?.slice(0, 40) ?? '圓桌群聊'
-        fetch('/api/conversations/create', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            type: 'roundtable',
-            mentorIds,
-            messages,
-            title,
-          }),
-        })
-          .then((r) => r.json())
-          .then(({ id }) => { setSessionId(id); sessionIdRef.current = id })
-          .catch(() => {})
-      }
+  // 儲存對話到 DB
+  const saveSession = useCallback((msgs: RoundtableMessage[]) => {
+    if (msgs.length === 0) return
+    const sid = sessionIdRef.current
+    if (sid) {
+      fetch('/api/conversations', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId: sid, messages: msgs }),
+      }).catch(() => {})
+    } else {
+      const title = msgs.find((m) => m.role === 'user')?.content?.slice(0, 40) ?? '圓桌群聊'
+      fetch('/api/conversations/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'roundtable',
+          mentorIds,
+          messages: msgs,
+          title,
+        }),
+      })
+        .then((r) => r.json())
+        .then(({ id }) => { setSessionId(id); sessionIdRef.current = id })
+        .catch(() => {})
     }
-    prevLoading.current = isLoading
-  }, [isLoading, messages, mentorIds])
+  }, [mentorIds])
 
   // 解析 @提及：匹配 @導師名
   function parseMentions(text: string): string[] {
@@ -193,11 +188,13 @@ export function RoundtableView({ mentors, initialQuestion, theoryIds, sessionId:
 
           case 'done':
             setIsLoading(false)
+            // 用 ref 取最新的 messages 儲存
+            saveSession(messagesRef.current)
             break
         }
       }
     }
-  }, [])
+  }, [saveSession])
 
   // 發送訊息
   async function sendMessage(text: string, options?: {
@@ -248,7 +245,8 @@ export function RoundtableView({ mentors, initialQuestion, theoryIds, sessionId:
       await handleSSE(res, newMessages)
     } catch (err) {
       if ((err as Error).name === 'AbortError') {
-        // 用戶插嘴中斷，正常行為
+        // 用戶插嘴中斷，儲存當前狀態
+        saveSession(messagesRef.current)
       } else {
         console.error('[Roundtable] 發送失敗:', err)
       }
@@ -528,7 +526,7 @@ function MessageRow({
                 : { backgroundColor: 'var(--bg-bubble-mentor)', color: 'var(--text-primary)' }
           }
         >
-          <MentionText text={msg.content} />
+          <MentionText text={msg.content} isUserBubble={isUser} />
 
           {/* 回覆按鈕（hover 時顯示） */}
           {!isUser && !isLoading && msg.content && (
@@ -551,13 +549,17 @@ function MessageRow({
 }
 
 // @提及高亮元件
-function MentionText({ text }: { text: string }) {
+function MentionText({ text, isUserBubble }: { text: string; isUserBubble?: boolean }) {
   const parts = text.split(/(@\S+)/g)
   return (
     <>
       {parts.map((part, i) =>
         part.startsWith('@') ? (
-          <span key={i} className="font-medium" style={{ color: 'var(--accent-gold)' }}>
+          <span
+            key={i}
+            className="font-semibold underline"
+            style={{ color: isUserBubble ? '#ffffff' : 'var(--accent-gold)' }}
+          >
             {part}
           </span>
         ) : (
