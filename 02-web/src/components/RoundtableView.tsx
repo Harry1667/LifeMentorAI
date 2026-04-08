@@ -63,7 +63,8 @@ export function RoundtableView({ mentors, initialQuestion, theoryIds, sessionId:
     }
   }, [initialSessionId, initialQuestion])
 
-  // 儲存對話到 DB
+  // 儲存對話到 DB（用 ref 鎖防止並發 create）
+  const savingRef = useRef(false)
   const saveSession = useCallback((msgs: RoundtableMessage[]) => {
     if (msgs.length === 0) return
     const sid = sessionIdRef.current
@@ -74,6 +75,8 @@ export function RoundtableView({ mentors, initialQuestion, theoryIds, sessionId:
         body: JSON.stringify({ sessionId: sid, messages: msgs }),
       }).catch(() => {})
     } else {
+      if (savingRef.current) return
+      savingRef.current = true
       const title = msgs.find((m) => m.role === 'user')?.content?.slice(0, 40) ?? '圓桌群聊'
       fetch('/api/conversations/create', {
         method: 'POST',
@@ -88,6 +91,7 @@ export function RoundtableView({ mentors, initialQuestion, theoryIds, sessionId:
         .then((r) => r.json())
         .then(({ id }) => { setSessionId(id); sessionIdRef.current = id })
         .catch(() => {})
+        .finally(() => { savingRef.current = false })
     }
   }, [mentorIds])
 

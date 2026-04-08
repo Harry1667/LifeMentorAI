@@ -199,7 +199,7 @@ export default function ChatPage() {
     navigator.clipboard.writeText(lines.join('\n\n')).then(() => {
       setCopySuccess(true)
       setTimeout(() => setCopySuccess(false), 2000)
-    })
+    }).catch(() => {})
   }
 
   const isRoundtable = debateQuestion !== null && debateMentors.length >= 2
