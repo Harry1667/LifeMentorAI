@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, type FormEvent, type KeyboardEvent } from 'react'
+import { useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 
 interface ChatInputProps {
   value: string
@@ -22,8 +22,11 @@ export function ChatInput({
   placeholder,
 }: ChatInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const [isComposing, setIsComposing] = useState(false)
 
   function handleKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
+    // 輸入法選字中（注音、拼音等），忽略 Enter
+    if (isComposing) return
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       if (!isLoading && value.trim()) {
@@ -77,6 +80,8 @@ export function ChatInput({
             value={value}
             onChange={handleChange}
             onKeyDown={handleKeyDown}
+            onCompositionStart={() => setIsComposing(true)}
+            onCompositionEnd={() => setIsComposing(false)}
             placeholder={placeholder ?? (isLoading ? '思考中...' : '輸入訊息...（Enter 送出）')}
             rows={1}
             disabled={isLoading}

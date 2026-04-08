@@ -180,6 +180,28 @@ export default function ChatPage() {
   const lastMessage = messages[messages.length - 1]
   const showActions = !isLoading && lastMessage?.role === 'assistant'
 
+  // 複製對話紀錄
+  const [copySuccess, setCopySuccess] = useState(false)
+  function handleCopyChat() {
+    const lines = messages.map((msg) => {
+      let text = ''
+      if (msg.parts && msg.parts.length > 0) {
+        text = msg.parts
+          .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
+          .map((p) => p.text)
+          .join('')
+      } else if ((msg as unknown as { content?: string }).content) {
+        text = (msg as unknown as { content: string }).content
+      }
+      const label = msg.role === 'user' ? '我' : persona.name
+      return `${label}：\n${text}`
+    })
+    navigator.clipboard.writeText(lines.join('\n\n')).then(() => {
+      setCopySuccess(true)
+      setTimeout(() => setCopySuccess(false), 2000)
+    })
+  }
+
   const isRoundtable = debateQuestion !== null && debateMentors.length >= 2
 
   return (
@@ -235,31 +257,66 @@ export default function ChatPage() {
                         className="absolute right-0 top-full mt-1 w-56 rounded-xl py-1 z-50 shadow-lg"
                         style={{ backgroundColor: 'var(--bg-primary)', border: '1px solid var(--border-subtle)' }}
                       >
-                        {allPersonas.map((p) => (
-                          <button
-                            key={p.id}
-                            onClick={() => handleSelectMentor(p.id)}
-                            className={`w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors hover:bg-white/5 ${
-                              p.id === activeMentorId ? 'bg-white/10' : ''
-                            }`}
-                            style={{ color: 'var(--text-primary)' }}
-                          >
-                            <div
-                              className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
-                              style={{ backgroundColor: p.color }}
-                            >
-                              {p.initial}
+                        {Object.entries(
+                          allPersonas.reduce<Record<string, Persona[]>>((acc, p) => {
+                            const cat = p.category || '其他'
+                            if (!acc[cat]) acc[cat] = []
+                            acc[cat].push(p)
+                            return acc
+                          }, {})
+                        ).map(([category, items]) => (
+                          <div key={category}>
+                            <div className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
+                              {category}
                             </div>
-                            <div className="min-w-0">
-                              <div className="text-sm">{p.name}</div>
-                              <div className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>{p.archetype}</div>
-                            </div>
-                          </button>
+                            {items.map((p) => (
+                              <button
+                                key={p.id}
+                                onClick={() => handleSelectMentor(p.id)}
+                                className={`w-full flex items-center gap-3 px-3 py-2 text-left text-sm transition-colors hover:bg-white/5 ${
+                                  p.id === activeMentorId ? 'bg-white/10' : ''
+                                }`}
+                                style={{ color: 'var(--text-primary)' }}
+                              >
+                                <div
+                                  className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
+                                  style={{ backgroundColor: p.color }}
+                                >
+                                  {p.initial}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="text-sm">{p.name}</div>
+                                  <div className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>{p.archetype}</div>
+                                </div>
+                              </button>
+                            ))}
+                          </div>
                         ))}
                       </div>
                     </>
                   )}
                 </div>
+              )}
+              {/* 複製對話紀錄按鈕 */}
+              {messages.length > 0 && (
+                <button
+                  onClick={handleCopyChat}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs transition-colors hover:bg-white/5"
+                  style={{ color: copySuccess ? 'var(--accent-gold)' : 'var(--text-muted)' }}
+                  title="複製對話紀錄"
+                >
+                  {copySuccess ? (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M20 6L9 17l-5-5" />
+                    </svg>
+                  ) : (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                      <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+                    </svg>
+                  )}
+                  <span className="hidden sm:inline">{copySuccess ? '已複製' : '複製對話'}</span>
+                </button>
               )}
               <UserButton />
             </div>

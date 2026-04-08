@@ -3,7 +3,7 @@ import { streamText, convertToModelMessages, type UIMessage } from 'ai'
 import { proxy } from '@/lib/ai-proxy'
 import { PERSONAS } from '@/lib/personas'
 import { getUserMemories, saveMemories } from '@/lib/supabase/client'
-import { getCustomPersonas, getTheories } from '@/lib/supabase/admin'
+import { getCustomPersonas, getTheories, getRecentContext } from '@/lib/supabase/admin'
 import { extractMemories } from '@/lib/memory-extraction'
 import type { MemoryRecord } from '@/lib/types/memory'
 import type { Persona } from '@/lib/types/persona'
@@ -82,11 +82,13 @@ export async function POST(req: Request) {
     ? `\n\n【已加入的思維工具箱】\n${theories.map((t) => `- ${t.name}：${t.coreIdea}\n  如何應用：${t.systemPromptExtension}`).join('\n')}\n\n你可以主動使用這些理論來分析問題。嘗試將理論和你自己的核心思維融合，產生更深刻的見解。`
     : ''
 
-  const actionInstruction = `\n\n如果你在回應中給了具體可執行的建議，在回應最後另起一行用這個格式標記（最多 1 個）：
-【行動】具體的行動建議內容
-不是每次都需要標記，只有當建議夠具體、可立刻執行時才加。`
+  const actionInstruction = '\n\n如果你在回應中給了具體可執行的建議，在回應最後另起一行用這個格式標記（最多 1 個）：\n【行動】具體的行動建議內容\n不是每次都需要標記，只有當建議夠具體、可立刻執行時才加。'
 
-  const systemPrompt = persona.systemPrompt + memoryContext + theoryContext + actionInstruction
+  // 第一條訊息時，查近期對話和未完成行動，讓導師自然回顧
+  const userMsgCount = messages.filter((m) => m.role === 'user').length
+  const recentContext = userMsgCount <= 1 ? await getRecentContext(userId) : ''
+
+  const systemPrompt = persona.systemPrompt + memoryContext + theoryContext + recentContext + actionInstruction
 
   // 取最後一條用戶訊息，用於記憶提取
   const lastUserMessage = [...messages].reverse().find((m) => m.role === 'user')?.parts

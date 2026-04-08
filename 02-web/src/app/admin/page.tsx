@@ -228,6 +228,24 @@ export default function AdminPage() {
                   onChange={(v) => setMentorPreview({ ...mentorPreview, greeting: v })} />
 
                 <div>
+                  <label className="text-xs mb-1 block" style={{ color: 'var(--text-secondary)' }}>分類</label>
+                  <select
+                    value={mentorPreview.category || '其他'}
+                    onChange={(e) => setMentorPreview({ ...mentorPreview, category: e.target.value })}
+                    className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+                    style={{
+                      backgroundColor: 'var(--bg-chat)',
+                      color: 'var(--text-primary)',
+                      border: '1px solid var(--border-subtle)',
+                    }}
+                  >
+                    {['管理學', '心理學', '哲學', '科學', '經濟學', '行為學', '創業', '藝術', '教育', '其他'].map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
                   <label className="text-xs mb-1 block" style={{ color: 'var(--text-secondary)' }}>System Prompt</label>
                   <textarea
                     value={mentorPreview.systemPrompt}

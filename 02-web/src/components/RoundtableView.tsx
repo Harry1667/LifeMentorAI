@@ -31,6 +31,8 @@ export function RoundtableView({ mentors, initialQuestion, theoryIds, sessionId:
   const [inputValue, setInputValue] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [replyTo, setReplyTo] = useState<RoundtableMessage | null>(null)
+  const [isComposing, setIsComposing] = useState(false)
+  const [copySuccess, setCopySuccess] = useState(false)
   const [synthesized, setSynthesized] = useState(false)
   const [sessionId, setSessionId] = useState<string | null>(initialSessionId ?? null)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -323,13 +325,35 @@ export function RoundtableView({ mentors, initialQuestion, theoryIds, sessionId:
               請主持人總結
             </button>
           )}
-          <button
-            onClick={onClose}
-            className="text-xs px-2 py-1 rounded hover:opacity-70 transition-opacity"
-            style={{ color: 'var(--text-muted)' }}
-          >
-            關閉
-          </button>
+          {messages.length > 0 && (
+            <button
+              onClick={() => {
+                const lines = messages.map((m) => {
+                  const label = m.role === 'user' ? '我' : (m.mentorName ?? '主持人')
+                  return label + '：\n' + m.content
+                })
+                navigator.clipboard.writeText(lines.join('\n\n')).then(() => {
+                  setCopySuccess(true)
+                  setTimeout(() => setCopySuccess(false), 2000)
+                })
+              }}
+              className="flex items-center gap-1 text-xs px-2 py-1 rounded transition-colors hover:bg-white/5"
+              style={{ color: copySuccess ? 'var(--accent-gold)' : 'var(--text-muted)' }}
+              title="複製對話紀錄"
+            >
+              {copySuccess ? (
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20 6L9 17l-5-5" />
+                </svg>
+              ) : (
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                  <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+                </svg>
+              )}
+              <span className="hidden sm:inline">{copySuccess ? '已複製' : '複製對話'}</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -413,11 +437,14 @@ export function RoundtableView({ mentors, initialQuestion, theoryIds, sessionId:
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={(e) => {
+              if (isComposing) return
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault()
                 handleSubmit(e)
               }
             }}
+            onCompositionStart={() => setIsComposing(true)}
+            onCompositionEnd={() => setIsComposing(false)}
             placeholder={isLoading ? '導師們討論中...（你可以隨時插嘴）' : `輸入訊息，或 @${mentors[0]?.name ?? '導師名'} 點名回應`}
             rows={1}
             className="w-full rounded-xl px-4 py-2.5 text-sm resize-none outline-none"

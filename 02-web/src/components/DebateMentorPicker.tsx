@@ -58,6 +58,14 @@ export function DebateMentorPicker({ personas, onStart, onCancel, initialQuestio
     onStart(q, selected, [...selectedTheoryIds])
   }
 
+  // 按分類分組導師
+  const groupedMentors = personas.reduce<Record<string, Persona[]>>((acc, p) => {
+    const cat = p.category || '其他'
+    if (!acc[cat]) acc[cat] = []
+    acc[cat].push(p)
+    return acc
+  }, {})
+
   // 按分類分組理論
   const groupedTheories = theories.reduce<Record<string, TheoryOption[]>>((acc, t) => {
     const cat = t.category || '其他'
@@ -101,35 +109,39 @@ export function DebateMentorPicker({ personas, onStart, onCancel, initialQuestio
           <label className="text-xs block mb-2" style={{ color: 'var(--text-muted)' }}>
             選擇導師（至少 2 位）
           </label>
-          <div className="grid grid-cols-2 gap-2">
-            {personas.map((p) => {
-              const selected = selectedIds.has(p.id)
-              return (
-                <button
-                  key={p.id}
-                  onClick={() => toggleMentor(p.id)}
-                  className="flex items-center gap-2 px-3 py-2 rounded-lg text-left transition-all text-sm"
-                  style={{
-                    backgroundColor: selected ? `${p.color}30` : 'var(--bg-chat)',
-                    border: `1px solid ${selected ? p.color : 'var(--border-subtle)'}`,
-                    color: selected ? 'var(--text-primary)' : 'var(--text-secondary)',
-                  }}
-                >
-                  <div
-                    className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0"
-                    style={{ backgroundColor: p.color, opacity: selected ? 1 : 0.4 }}
-                  >
-                    {p.initial}
-                  </div>
-                  <div className="min-w-0">
-                    <span className="truncate block">{p.name}</span>
-                    {p.category && (
-                      <span className="text-[10px] block" style={{ color: 'var(--text-muted)' }}>{p.category}</span>
-                    )}
-                  </div>
-                </button>
-              )
-            })}
+          <div className="space-y-3">
+            {Object.entries(groupedMentors).map(([category, items]) => (
+              <div key={category}>
+                <span className="text-[10px] uppercase tracking-wider mb-1 block" style={{ color: 'var(--text-muted)' }}>
+                  {category}
+                </span>
+                <div className="grid grid-cols-2 gap-2">
+                  {items.map((p) => {
+                    const selected = selectedIds.has(p.id)
+                    return (
+                      <button
+                        key={p.id}
+                        onClick={() => toggleMentor(p.id)}
+                        className="flex items-center gap-2 px-3 py-2 rounded-lg text-left transition-all text-sm"
+                        style={{
+                          backgroundColor: selected ? `${p.color}30` : 'var(--bg-chat)',
+                          border: `1px solid ${selected ? p.color : 'var(--border-subtle)'}`,
+                          color: selected ? 'var(--text-primary)' : 'var(--text-secondary)',
+                        }}
+                      >
+                        <div
+                          className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0"
+                          style={{ backgroundColor: p.color, opacity: selected ? 1 : 0.4 }}
+                        >
+                          {p.initial}
+                        </div>
+                        <span className="truncate">{p.name}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 
