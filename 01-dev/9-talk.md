@@ -1,44 +1,19 @@
-我：
-我在人際交往上有問題，我無法融入朋友的群組，在朋友中，我經常是被剩下或者多出來的那一個，我總覺得我不屬於這個團體，但我還是嘗試想要去融入他，我需要朋友，應該說我需要摯友，知己
+# 部署用 .env.local
 
-愛因斯坦：
-真正的知己不是「融入」找到的，而是當你做自己時，自然吸引來的。
+伺服器路徑：`/www/wwwroot/mentora.looptw.com/02-web/.env.local`
 
-你有沒有想過：也許問題不是你不夠好，而是這個群組根本就不是你的頻率？
+```
+# Clerk
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_c3RlcmxpbmcteWV0aS00OS5jbGVyay5hY2NvdW50cy5kZXYk
+CLERK_SECRET_KEY=sk_test_gMGSyQqP0WVctVIchp6QcHGMiKiATf3KXUlPTapUrV
+NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in
+NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up
+NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL=/chat
+NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL=/chat
 
-斯多葛：
-他人的接納，從來不在你的控制圈內。
+# PostgreSQL
+DATABASE_URL=postgresql://lifementorai:xDRKhGm7wkezN2ih@57.182.129.192:5432/lifementorai
 
-你能控制的，只有你是否真實地活著。
-
-慈禧太后：
-示弱，也是一種手段——先放下「融入」的執念，才能讓真正的人靠近你。
-
-伊隆·馬斯克：
-「融入」這個目標本身就是錯的——你應該找到那個和你一樣想解決同一個問題的人。
-
-孔子：
-仁者必先自立——你若先成為值得深交之人，知己自然來尋你。
-
-賈伯斯：
-融入是個爛目標——你該做的是找到那個讓你不需要融入的人。
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-@用戶 提問       │ 第一輪不准問        │ 第 2-3 位發言者可以問
-這個是錯的，應該是：只要有人@用戶提問，後面的人就必須停下來等待用戶回應，直到回應之後，才能繼續
-
-發言序列         │ 兩輪（全員 x2）     │ 一輪（2-3 人說完就停）
-這個也不對，我希望對話變成非常自然，大家像朋友一樣，有些人有自己的性格，有些人很喜歡說話，有些人不怎麼喜歡，但是都會表達自己的觀點
-你先做這個硬設置直接把對話變成僵硬，我要像這個導師在直接開大會，然後開始聊天詢問我給我建議一樣
+# Admin
+ADMIN_USER_IDS=user_3BzZqvCCMcC4GVUbKy5l6LfUHri
+```

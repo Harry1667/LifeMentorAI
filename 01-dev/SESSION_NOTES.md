@@ -1,5 +1,42 @@
 # SESSION NOTES
 
+## 2026-04-09（第五次工作階段）
+
+### 今天完成的事
+
+1. **側邊欄即時刷新**
+   - 一般對話：送出訊息時並行建立 session，不阻塞 AI 請求
+   - 圓桌群聊：加 `onSessionCreated` callback，建立/更新後都刷新側邊欄
+   - AI 回完後 fallback 保護（session creation 比 AI 慢時補建）
+
+2. **ESLint 全面修復（0 errors 0 warnings）**
+   - React 19 ref-during-render 違規修正（useEffect 包裝）
+   - 移除未使用變數（showMenu, mentorMap, currentMessages）
+   - `chat/route.ts` optional chaining 修復（防止 `.parts` undefined crash）
+
+3. **時區統一 Asia/Taipei**
+   - 側邊欄日期分組（今天/昨天判斷改用台灣時區字串比較）
+   - 行動追蹤、週摘要、近期上下文日期顯示
+
+4. **圓桌群聊重寫**
+   - 移除硬性輪次/字數限制，導師獨立思考自由發揮
+   - 2 人發言後提示可以問用戶，@用戶 提問後全停
+   - maxOutputTokens 60→300，讓回答有深度
+   - 移除「導演 AI」預排劇本的方案，保持每人自主
+
+### 未完成的事
+- aaPanel 壞掉，尚未重新部署 mentora.looptw.com
+- Clerk 換 production key（目前用 test key）
+- DATABASE_URL 密碼建議更換
+- 圓桌對話品質持續調整中
+
+### 下次從哪裡開始
+- 修好 aaPanel 後重新部署
+- 測試圓桌新版對話品質（自然度、互動深度）
+- 根據 9-talk.md 的測試反饋繼續微調 prompt
+
+---
+
 ## 2026-04-08（第四次工作階段）
 
 ### 今天完成的事
