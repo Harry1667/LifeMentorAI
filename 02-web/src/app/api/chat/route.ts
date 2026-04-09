@@ -102,7 +102,7 @@ export async function POST(req: Request) {
     model: proxy('claude-sonnet-4-6'),
     system: systemPrompt,
     messages: await convertToModelMessages(messages),
-    maxOutputTokens: 600,
+    maxOutputTokens: 1200,
     onFinish: async ({ text }) => {
       // 非同步提取記憶，不阻塞回應
       extractMemories(lastUserMessage, text).then((extracted) => {
