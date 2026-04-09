@@ -145,7 +145,6 @@ function ActionCard({
   onUpdate: (id: string, updates: Record<string, unknown>) => void
   onDelete: (id: string) => void
 }) {
-  const [showMenu, setShowMenu] = useState(false)
   const config = STATUS_CONFIG[action.status]
 
   return (
@@ -239,7 +238,7 @@ function ActionCard({
 
       {/* 日期 */}
       <p className="text-[10px] mt-2" style={{ color: 'var(--text-muted)' }}>
-        {new Date(action.created_at).toLocaleDateString('zh-TW', { month: 'short', day: 'numeric' })}
+        {new Date(action.created_at).toLocaleDateString('zh-TW', { month: 'short', day: 'numeric', timeZone: 'Asia/Taipei' })}
       </p>
     </div>
   )

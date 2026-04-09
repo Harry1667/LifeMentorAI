@@ -126,7 +126,7 @@ export async function getRecentContext(userId: string): Promise<string> {
     if (recentSessions.length > 0) {
       const lines = recentSessions.map((s) => {
         const type = s.type === 'roundtable' ? '圓桌' : '對話'
-        const date = new Date(s.created_at).toLocaleDateString('zh-TW')
+        const date = new Date(s.created_at).toLocaleDateString('zh-TW', { timeZone: 'Asia/Taipei' })
         return '- ' + date + ' ' + type + '：' + (s.title || '（無標題）')
       })
       parts.push('【用戶近期對話】\n' + lines.join('\n'))

@@ -91,8 +91,9 @@ export async function POST(req: Request) {
   const systemPrompt = persona.systemPrompt + memoryContext + theoryContext + recentContext + actionInstruction
 
   // 取最後一條用戶訊息，用於記憶提取
-  const lastUserMessage = [...messages].reverse().find((m) => m.role === 'user')?.parts
-    .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
+  const lastUserMsg = [...messages].reverse().find((m) => m.role === 'user')
+  const lastUserMessage = lastUserMsg?.parts
+    ?.filter((p): p is { type: 'text'; text: string } => p.type === 'text')
     .map((p) => p.text)
     .join('') ?? ''
 

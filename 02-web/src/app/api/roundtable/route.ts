@@ -63,8 +63,17 @@ interface RequestBody {
   synthesize?: boolean
 }
 
-// 多 Agent 圓桌對話：每個導師獨立思考，短回應，互相討論
-const MAX_TURNS = 6
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr]
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
+}
+
+// 安全上限
+const MAX_SPEAKERS = 6
 
 export async function POST(req: Request) {
   const { userId } = await auth()
@@ -86,8 +95,7 @@ export async function POST(req: Request) {
     if (p) allPersonaMap.set(id, p)
   }
 
-  // 載入記憶 + 理論 + 近期行動（如果有指定 theoryIds 就只用選中的）
-  // 只在第一輪（只有用戶訊息）時查近期上下文
+  // 載入記憶 + 理論 + 近期行動
   const userMsgCount = messages.filter((m) => m.role === 'user').length
   const [memories, allTheories, recentContext] = await Promise.all([
     getUserMemories(userId),
@@ -99,10 +107,10 @@ export async function POST(req: Request) {
     : allTheories
   const memoryContext = buildMemoryContext(memories)
   const theoryContext = theories.length > 0
-    ? `\n\n【已加入的思維工具箱】\n${theories.map((t) => `- ${t.name}：${t.coreIdea}\n  如何應用：${t.systemPromptExtension}`).join('\n')}\n\n你可以主動使用這些理論框架來分析問題。如果某個理論和你自己的核心思維互補，嘗試將它們融合在一起，產生更深刻的觀點。例如：你可以結合你的專長和上面的理論，提出獨到的見解。`
+    ? `\n\n【已加入的思維工具箱】\n${theories.map((t) => `- ${t.name}：${t.coreIdea}\n  如何應用：${t.systemPromptExtension}`).join('\n')}\n\n你可以主動使用這些理論框架來分析問題。將它們融合在你自己的思維中，產生更深刻的觀點。`
     : ''
 
-  // 把歷史對話格式化
+  // 歷史對話格式化
   function formatHistory(msgs: RoundtableMessage[]): string {
     return msgs.map((m) => {
       if (m.role === 'user') return `用戶：${m.content}`
@@ -112,7 +120,6 @@ export async function POST(req: Request) {
 
   const history = formatHistory(messages)
 
-  // 其他導師名字列表（給 prompt 用）
   function otherMentorNames(currentId: string): string {
     return [...allPersonaMap.values()]
       .filter((m) => m.id !== currentId)
@@ -120,83 +127,65 @@ export async function POST(req: Request) {
       .join('、')
   }
 
-  // 決定發言順序：有指定的排前面，其餘隨機打亂
-  function shuffle<T>(arr: T[]): T[] {
-    const a = [...arr]
-    for (let i = a.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [a[i], a[j]] = [a[j], a[i]]
-    }
-    return a
-  }
-
-  let firstOrder: string[]
+  // 決定發言順序：被 @ 的排前面，其餘隨機
+  let turnOrder: string[]
   if (replyToMentorId) {
-    firstOrder = [replyToMentorId, ...shuffle(mentorIds.filter((id) => id !== replyToMentorId))]
+    turnOrder = [replyToMentorId, ...shuffle(mentorIds.filter((id) => id !== replyToMentorId))]
   } else if (mentionedMentorIds && mentionedMentorIds.length > 0) {
     const mentioned = mentionedMentorIds.filter((id) => allPersonaMap.has(id))
     const rest = shuffle(mentorIds.filter((id) => !mentioned.includes(id)))
-    firstOrder = [...mentioned, ...rest]
+    turnOrder = [...mentioned, ...rest]
   } else {
-    firstOrder = shuffle([...mentorIds])
+    turnOrder = shuffle([...mentorIds])
   }
-
-  // 建立最多 2 輪的發言序列（第二輪也重新打亂）
-  const fullTurnOrder: string[] = [...firstOrder, ...shuffle([...mentorIds])]
 
   const encoder = new TextEncoder()
   const stream = new ReadableStream({
     async start(controller) {
-      // 本輪新產生的對話
       const thisRoundMsgs: { mentorName: string; text: string }[] = []
-      let turnCount = 0
-      let consecutiveSkips = 0
-      let questionAskedToUser = false  // 有人 @用戶 提問了
-      const mentorCount = mentorIds.length
+      let speakerCount = 0
 
-      for (let i = 0; i < fullTurnOrder.length; i++) {
-        if (turnCount >= MAX_TURNS) break
-        if (consecutiveSkips >= mentorCount) break
-        // 有人 @用戶 提問 → 立刻停止，不等其他人
-        if (questionAskedToUser) break
+      for (const mentorId of turnOrder) {
+        if (speakerCount >= MAX_SPEAKERS) break
 
-        const mentorId = fullTurnOrder[i]
         const mentor = allPersonaMap.get(mentorId)
         if (!mentor) continue
 
-        const isFirst = thisRoundMsgs.length === 0
+        const others = otherMentorNames(mentor.id)
         const recentDiscussion = thisRoundMsgs.map((r) => `${r.mentorName}：${r.text}`).join('\n')
 
-        // 圓桌對話 prompt
-        const others = otherMentorNames(mentor.id)
+        // 根據已發言人數動態調整 prompt
+        const shouldAskUser = speakerCount >= 2  // 已有 2 人以上發言
         const roundtableRules = [
           '',
-          '你正在一個圓桌群聊中，和其他導師（' + others + '）一起與用戶交談。',
+          `你正在一個圓桌群聊中，和其他導師（${others}）一起跟用戶聊天。`,
+          '你們是一群朋友在討論，語氣自然、真誠、有溫度。',
+          '根據你的性格和專業，自由決定要說什麼、說多少。',
           '',
-          '格式規定（違反 = 失敗）：',
-          '- 只能寫 1-2 句話，總共不超過 40 個字。這是硬性限制。',
-          '- 想像你在 LINE 群組打字，不是寫部落格。',
-          '- 回應導師 → @導師名 開頭',
-          '- 對用戶說話 → @用戶 開頭（絕對不能寫「用戶，」）',
-          '- 一般觀點 → 不加 @',
-          '- 沒有新觀點 → 只回覆「（跳過）」',
+          '可以做的事：',
+          '- 分享你獨特的觀點或經驗',
+          '- @導師名 回應或反駁其他導師的觀點',
+          '- @用戶 直接對用戶說話或問問題',
+          '- 補充前面有人漏掉的角度',
+          '- 如果你真的沒什麼要補充的，回覆「（跳過）」',
           '',
-          '禁止事項：',
-          '- 不要說出你的思考過程（例如「費曼已經問了，所以我跳過」）',
-          '- 不要解釋你為什麼跳過或為什麼發言',
-          '- 如果要跳過，就只寫「（跳過）」三個字，不要加任何說明',
+          '不要做的事：',
+          '- 不要重複別人已經說過的觀點',
+          '- 不要空泛的心靈雞湯',
+          '- 不要說出思考過程（如「我同意某某，所以...」直接說你的觀點就好）',
           '',
-          '@用戶 規定：',
-          '- 如果前面已經有人 @用戶 提問，你必須回覆「（跳過）」',
-          '- 第一輪先分享觀點，不要急著對用戶提問',
-          '- @用戶 提問後討論會暫停等回答，所以確保問題值得問',
-        ].join('\n')
+          '長度：根據你想表達的內容自由決定。有重要觀點就多說，簡單附和就短說。',
+          '',
+          shouldAskUser
+            ? '【提示】已經有幾位導師分享了觀點。如果你覺得討論到了一個適合聽聽用戶想法的時機，可以在你的回應最後用 @用戶 提一個具體的問題。一旦你 @用戶 提問，其他人會停下來等用戶回應。'
+            : '',
+        ].filter(Boolean).join('\n')
 
         const systemPrompt = mentor.systemPrompt + memoryContext + theoryContext + recentContext + roundtableRules
 
-        const prompt = isFirst
-          ? '對話紀錄：\n' + history + '\n\n以 ' + mentor.name + ' 的角度回應用戶最新的發言。'
-          : '對話紀錄：\n' + history + '\n\n本輪討論：\n' + recentDiscussion + '\n\n以 ' + mentor.name + ' 的角度加入討論。可以回應其他導師，也可以對用戶說話。如果沒有新觀點就跳過。'
+        const prompt = thisRoundMsgs.length === 0
+          ? `對話紀錄：\n${history}\n\n以 ${mentor.name} 的身分回應用戶。`
+          : `對話紀錄：\n${history}\n\n本輪討論：\n${recentDiscussion}\n\n以 ${mentor.name} 的身分加入討論。`
 
         const meta = {
           mentorId: mentor.id,
@@ -214,23 +203,19 @@ export async function POST(req: Request) {
             model: proxy('claude-sonnet-4-6'),
             system: systemPrompt,
             prompt,
-            maxOutputTokens: 60,
+            maxOutputTokens: 300,
           })
 
           const trimmed = fullText.trim()
 
-          // 判斷是否跳過
           if (trimmed === '（跳過）' || trimmed === '（點頭）' || trimmed === '') {
             controller.enqueue(encoder.encode(
               `data: ${JSON.stringify({ type: 'step_skip', mentorId: mentor.id })}\n\n`
             ))
-            consecutiveSkips++
             continue
           }
 
-          // 有實質回應
-          consecutiveSkips = 0
-          turnCount++
+          speakerCount++
 
           controller.enqueue(encoder.encode(
             `data: ${JSON.stringify({ type: 'step_delta', mentorId: mentor.id, delta: trimmed })}\n\n`
@@ -242,10 +227,9 @@ export async function POST(req: Request) {
 
           thisRoundMsgs.push({ mentorName: mentor.name, text: trimmed })
 
-          // 偵測是否 @用戶 提問 → 停下來等用戶回應
-          // 只認明確的 @用戶 + 問號，避免修辭問句誤觸發
+          // @用戶 提問 → 立刻停，後面的人不用說了
           if (trimmed.includes('@用戶') && (trimmed.includes('？') || trimmed.includes('?'))) {
-            questionAskedToUser = true
+            break
           }
 
         } catch (err) {

@@ -22,14 +22,19 @@ export interface SessionSummary {
 }
 
 function formatDateGroup(dateStr: string): string {
+  const tz = 'Asia/Taipei'
   const date = new Date(dateStr)
   const now = new Date()
-  const diffMs = now.getTime() - date.getTime()
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
-  if (diffDays === 0) return '今天'
-  if (diffDays === 1) return '昨天'
+  // 用台灣時區的日期字串比較，避免 UTC 跨日誤判
+  const toDateStr = (d: Date) => d.toLocaleDateString('en-CA', { timeZone: tz })
+  const dateOnly = toDateStr(date)
+  const todayStr = toDateStr(now)
+  const yesterdayStr = toDateStr(new Date(now.getTime() - 86400000))
+  if (dateOnly === todayStr) return '今天'
+  if (dateOnly === yesterdayStr) return '昨天'
+  const diffDays = Math.floor((now.getTime() - date.getTime()) / 86400000)
   if (diffDays < 7) return `${diffDays} 天前`
-  return date.toLocaleDateString('zh-TW', { month: 'short', day: 'numeric' })
+  return date.toLocaleDateString('zh-TW', { month: 'short', day: 'numeric', timeZone: tz })
 }
 
 export function Sidebar({

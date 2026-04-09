@@ -15,7 +15,7 @@ export default function SignInPage() {
             你的私人圓桌智者
           </p>
         </div>
-        <SignIn forceRedirectUrl="/chat" />
+        <SignIn />
       </div>
     </div>
   )

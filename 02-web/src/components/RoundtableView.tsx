@@ -21,12 +21,14 @@ interface RoundtableViewProps {
   theoryIds?: string[]
   sessionId?: string | null
   onClose: () => void
+  onSessionCreated?: () => void
 }
 
 let msgIdCounter = 0
 function nextId() { return `rt_${Date.now()}_${++msgIdCounter}` }
 
-export function RoundtableView({ mentors, initialQuestion, theoryIds, sessionId: initialSessionId, onClose }: RoundtableViewProps) {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- onClose 保留給未來 UI 使用
+export function RoundtableView({ mentors, initialQuestion, theoryIds, sessionId: initialSessionId, onClose, onSessionCreated }: RoundtableViewProps) {
   const [messages, setMessages] = useState<RoundtableMessage[]>([])
   const [inputValue, setInputValue] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -39,11 +41,10 @@ export function RoundtableView({ mentors, initialQuestion, theoryIds, sessionId:
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const mentorIds = mentors.map((m) => m.id)
   const sessionIdRef = useRef(sessionId)
-  sessionIdRef.current = sessionId
-  const mentorMap = Object.fromEntries(mentors.map((m) => [m.id, m]))
+  useEffect(() => { sessionIdRef.current = sessionId }, [sessionId])
   const abortRef = useRef<AbortController | null>(null)
   const messagesRef = useRef(messages)
-  messagesRef.current = messages
+  useEffect(() => { messagesRef.current = messages }, [messages])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -73,7 +74,7 @@ export function RoundtableView({ mentors, initialQuestion, theoryIds, sessionId:
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sessionId: sid, messages: msgs }),
-      }).catch(() => {})
+      }).then(() => onSessionCreated?.()).catch(() => {})
     } else {
       if (savingRef.current) return
       savingRef.current = true
@@ -89,11 +90,11 @@ export function RoundtableView({ mentors, initialQuestion, theoryIds, sessionId:
         }),
       })
         .then((r) => r.json())
-        .then(({ id }) => { setSessionId(id); sessionIdRef.current = id })
+        .then(({ id }) => { setSessionId(id); sessionIdRef.current = id; onSessionCreated?.() })
         .catch(() => {})
         .finally(() => { savingRef.current = false })
     }
-  }, [mentorIds])
+  }, [mentorIds, onSessionCreated])
 
   // 解析 @提及：匹配 @導師名
   function parseMentions(text: string): string[] {
@@ -111,7 +112,6 @@ export function RoundtableView({ mentors, initialQuestion, theoryIds, sessionId:
   // 處理 SSE 串流回應
   const handleSSE = useCallback(async (
     res: Response,
-    currentMessages: RoundtableMessage[],
   ) => {
     const reader = res.body!.getReader()
     const decoder = new TextDecoder()
@@ -246,7 +246,7 @@ export function RoundtableView({ mentors, initialQuestion, theoryIds, sessionId:
       })
 
       if (!res.ok) throw new Error(await res.text())
-      await handleSSE(res, newMessages)
+      await handleSSE(res)
     } catch (err) {
       if ((err as Error).name === 'AbortError') {
         // 用戶插嘴中斷，儲存當前狀態

@@ -1,5 +1,88 @@
 # SESSION NOTES
 
+## 2026-04-08（第四次工作階段）
+
+### 今天完成的事
+
+1. **品牌更名：Mentora**
+   - 所有 UI 文字從 Life Mentor AI 改為 Mentora
+   - 部署到 `mentora.looptw.com`
+
+2. **圓桌群聊品質優化**
+   - 發言順序隨機化（Fisher-Yates），不再固定富蘭克林先說
+   - @用戶 提問後立刻停止，不等其他人
+   - 偵測收緊：只認明確 @用戶 + 問號
+   - 字數限制 40 字 / maxOutputTokens 60
+   - 禁止元認知洩漏（「費曼已經問了所以我跳過」）
+   - prompt 重構為 array.join 格式避免 Turbopack 解析錯誤
+
+3. **導師語氣強化**
+   - 三導師加口頭禪和互動特色（富蘭克林、費曼、斯多葛）
+   - 自訂導師 analyze API 自動生成語氣/口頭禪/互動特色
+
+4. **爭議歷史人物支援**
+   - analyze API 重構為「教育平台角色設計師」框架
+   - 自動加 ⚠️ 歷史警示區塊
+
+5. **導師主動回顧（方案 B）**
+   - 新增 getRecentContext() 查過去 3 天對話 + 未完成行動
+   - 一般聊天和圓桌第一輪都注入，導師自然追問行動進展
+
+6. **UX 改善**
+   - 複製對話按鈕（一般聊天 + 圓桌都有）
+   - 輸入法 composing 防誤送（ChatInput + RoundtableView）
+   - 導師/理論分類分組（picker + header 下拉）
+   - Admin 導師預覽加分類下拉選單
+   - 圓桌關閉按鈕移除
+   - @mention 用戶泡泡改白色避免顏色融合
+
+7. **Bug 修復**
+   - 圓桌插嘴後對話不存檔：改用 saveSession 函式 + SSE done 事件直接儲存
+   - 並發 create session race condition：savingRef 鎖
+   - clipboard 錯誤處理
+
+8. **部署到 Oracle 伺服器**
+   - Node.js 20 + PM2 + Python 3.11 安裝
+   - proxycli venv + grpcio/protobuf
+   - Apache 反向代理 → localhost:3000
+   - PM2 開機自啟
+   - 上線：mentora.looptw.com ✓
+
+### 未完成的事
+- Clerk 換 production key（目前用 test key）
+- DATABASE_URL 密碼建議更換（已暴露在對話中）
+- C0/C1 自用測試持續中
+- 偏好學習（需 20+ 行動樣本累積）
+
+### 下次從哪裡開始
+- 測試 mentora.looptw.com 線上環境
+- 圓桌群聊品質驗證（隨機排序 + @用戶即停 + 字數控制）
+- 導師主動回顧效果測試
+- Clerk production key 切換
+
+### 伺服器管理
+```bash
+# SSH（需要 key）
+ssh opc@144.24.11.24
+
+# aaPanel
+https://144.24.11.24:13582/990a2e2d
+
+# PM2 管理
+sudo su -
+pm2 list          # 查看狀態
+pm2 logs          # 查看日誌
+pm2 restart all   # 重啟
+
+# 更新部署
+cd /www/wwwroot/mentora.looptw.com/02-web
+git pull
+npm run build
+pm2 restart mentora-web
+```
+
+---
+
 ## 2026-04-08（第三次工作階段）
 
 ### 今天完成的事

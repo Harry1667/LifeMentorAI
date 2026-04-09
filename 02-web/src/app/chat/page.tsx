@@ -50,8 +50,9 @@ export default function ChatPage() {
   const [showDebatePicker, setShowDebatePicker] = useState(false)
 
   const activeMentorIdRef = useRef(activeMentorId)
-  activeMentorIdRef.current = activeMentorId
+  useEffect(() => { activeMentorIdRef.current = activeMentorId }, [activeMentorId])
 
+  /* eslint-disable react-hooks/refs -- body 是 callback，ref 只在請求時讀取，不在 render 時 */
   const transport = useMemo(
     () =>
       new DefaultChatTransport({
@@ -60,6 +61,7 @@ export default function ChatPage() {
       }),
     []
   )
+  /* eslint-enable react-hooks/refs */
 
   const { messages, sendMessage, status, setMessages } = useChat({ transport })
   const isLoading = status === 'submitted' || status === 'streaming'
@@ -78,18 +80,21 @@ export default function ChatPage() {
   // AI 回應完成後存到 DB
   const prevStatus = useRef(status)
   const activeSessionIdRef = useRef(activeSessionId)
-  activeSessionIdRef.current = activeSessionId
+  useEffect(() => { activeSessionIdRef.current = activeSessionId }, [activeSessionId])
 
+  // AI 回完後儲存 messages 到 DB
   useEffect(() => {
     if (prevStatus.current !== 'ready' && status === 'ready' && messages.length > 0) {
       const sid = activeSessionIdRef.current
       if (sid) {
+        // session 已存在，更新 messages
         fetch('/api/conversations', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ sessionId: sid, messages }),
         }).then(() => setSidebarRefreshKey((k) => k + 1)).catch(() => {})
       } else {
+        // fallback：session creation 比 AI 回覆慢，或建立失敗
         fetch('/api/conversations/create', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -154,16 +159,38 @@ export default function ChatPage() {
     setMessages([])
   }
 
+  // 送出第一條訊息時並行建立 session（不阻塞 AI 請求）
+  const creatingSessionRef = useRef(false)
+  function createSessionIfNeeded(title: string) {
+    if (activeSessionIdRef.current || creatingSessionRef.current) return
+    creatingSessionRef.current = true
+    fetch('/api/conversations/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'chat', mentorIds: [activeMentorId], title: title.slice(0, 40) }),
+    })
+      .then((r) => r.json())
+      .then(({ id }) => {
+        setActiveSessionId(id)
+        activeSessionIdRef.current = id
+        setSidebarRefreshKey((k) => k + 1)
+      })
+      .catch(() => {})
+      .finally(() => { creatingSessionRef.current = false })
+  }
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     const text = inputValue.trim()
     if (!text || isLoading) return
-    sendMessage({ text })
     setInputValue('')
+    createSessionIfNeeded(text)
+    sendMessage({ text })
   }
 
   function handleActionSelect(action: string) {
     if (isLoading) return
+    createSessionIfNeeded(action)
     sendMessage({ text: action })
   }
 
@@ -330,6 +357,7 @@ export default function ChatPage() {
               theoryIds={debateTheoryIds}
               sessionId={activeSessionId}
               onClose={handleRoundtableClose}
+              onSessionCreated={() => setSidebarRefreshKey((k) => k + 1)}
             />
           )}
 

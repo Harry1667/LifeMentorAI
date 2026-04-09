@@ -56,7 +56,7 @@ export async function POST() {
       .slice(0, 3) // 每段對話取前 3 條用戶訊息
 
     const type = s.type === 'roundtable' ? '圓桌群聊' : '對話'
-    return `${type}（${new Date(s.created_at).toLocaleDateString('zh-TW')}）：${userMsgs.join('、')}`
+    return `${type}（${new Date(s.created_at).toLocaleDateString('zh-TW', { timeZone: 'Asia/Taipei' })}）：${userMsgs.join('、')}`
   }).join('\n')
 
   const actionSummary = actions.map((a) => {
