@@ -221,8 +221,11 @@ export function RoundtableView({ mentors, initialQuestion, theoryIds, sessionId:
       abortRef.current = null
     }
 
-    // 用 ref 取最新 messages（插嘴時 closure 裡的 messages 可能過時）
-    const newMessages = [...messagesRef.current, userMsg]
+    // 清除插嘴中斷產生的空 mentor messages
+    const cleaned = messagesRef.current.filter(
+      (m) => m.role === 'user' || m.content.trim() !== ''
+    )
+    const newMessages = [...cleaned, userMsg]
     setMessages(newMessages)
     setIsLoading(true)
     setReplyTo(null)
@@ -394,6 +397,16 @@ export function RoundtableView({ mentors, initialQuestion, theoryIds, sessionId:
                 <span className="typing-dot w-1.5 h-1.5 rounded-full inline-block" style={{ backgroundColor: 'var(--accent-gold)' }} />
               </span>
             </div>
+          </div>
+        )}
+
+        {/* 等待用戶回覆（導師問了 @用戶 問題後） */}
+        {!isLoading && messages.length > 0 && messages[messages.length - 1].role === 'mentor' && messages[messages.length - 1].content.includes('@用戶') && (
+          <div
+            className="text-center text-xs py-2"
+            style={{ color: 'var(--accent-gold)' }}
+          >
+            導師們在等你的回覆
           </div>
         )}
 

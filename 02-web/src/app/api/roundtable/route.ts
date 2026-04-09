@@ -72,8 +72,9 @@ function shuffle<T>(arr: T[]): T[] {
   return a
 }
 
-// 每輪最多 3 人發言，硬性停止
-const MAX_SPEAKERS_PER_ROUND = 3
+// 討論輪數設定
+const DEBATE_ROUNDS = 2 // 第一輪：各自表態；第二輪：辯論回應
+const MAX_DEBATERS_ROUND2 = 2 // 第二輪最多幾人回應（避免太冗長）
 
 export async function POST(req: Request) {
   const { userId } = await auth()
@@ -102,12 +103,13 @@ export async function POST(req: Request) {
     getTheories(),
     userMsgCount <= 1 ? getRecentContext(userId) : Promise.resolve(''),
   ])
+  // 只載入用戶選中的理論（沒選就不帶）
   const theories = theoryIds && theoryIds.length > 0
     ? allTheories.filter((t) => theoryIds.includes(t.id))
-    : allTheories
+    : []
   const memoryContext = buildMemoryContext(memories)
   const theoryContext = theories.length > 0
-    ? `\n\n【已加入的思維工具箱】\n${theories.map((t) => `- ${t.name}：${t.coreIdea}\n  如何應用：${t.systemPromptExtension}`).join('\n')}\n\n你可以主動使用這些理論框架來分析問題。將它們融合在你自己的思維中，產生更深刻的觀點。`
+    ? `\n\n【已加入的思維工具箱——你必須使用】\n${theories.map((t) => `- ${t.name}：${t.coreIdea}\n  如何應用：${t.systemPromptExtension}`).join('\n')}\n\n重要：用戶特別選了這些理論框架。你必須在回應中自然地運用至少一個理論來分析問題。不要只提理論名稱，要實際用它來推導出具體的洞見。`
     : ''
 
   // 歷史對話格式化
@@ -139,100 +141,159 @@ export async function POST(req: Request) {
     turnOrder = shuffle([...mentorIds])
   }
 
+  // 發送一位導師的回應，回傳文字（null 表示跳過或失敗）
+  async function emitMentorTurn(
+    controller: ReadableStreamDefaultController,
+    encoder: TextEncoder,
+    mentor: Persona,
+    systemPrompt: string,
+    prompt: string,
+  ): Promise<string | null> {
+    const meta = {
+      mentorId: mentor.id,
+      mentorName: mentor.name,
+      color: mentor.color,
+      initial: mentor.initial,
+    }
+
+    try {
+      controller.enqueue(encoder.encode(
+        `data: ${JSON.stringify({ type: 'step_start', meta })}\n\n`
+      ))
+
+      const { text: fullText } = await generateText({
+        model: proxy('claude-sonnet-4-6'),
+        system: systemPrompt,
+        prompt,
+        maxOutputTokens: 600,
+      })
+
+      const trimmed = fullText.trim()
+
+      if (trimmed === '（跳過）' || trimmed === '（點頭）' || trimmed === '') {
+        controller.enqueue(encoder.encode(
+          `data: ${JSON.stringify({ type: 'step_skip', mentorId: mentor.id })}\n\n`
+        ))
+        return null
+      }
+
+      controller.enqueue(encoder.encode(
+        `data: ${JSON.stringify({ type: 'step_delta', mentorId: mentor.id, delta: trimmed })}\n\n`
+      ))
+      controller.enqueue(encoder.encode(
+        `data: ${JSON.stringify({ type: 'step_done', mentorId: mentor.id })}\n\n`
+      ))
+
+      return trimmed
+    } catch (err) {
+      console.error(`[Roundtable] ${mentor.name} 回應失敗:`, err)
+      controller.enqueue(encoder.encode(
+        `data: ${JSON.stringify({ type: 'step_error', meta, error: `${mentor.name}暫時無法回應` })}\n\n`
+      ))
+      return null
+    }
+  }
+
   const encoder = new TextEncoder()
   const stream = new ReadableStream({
     async start(controller) {
-      const thisRoundMsgs: { mentorName: string; text: string }[] = []
-      let speakerCount = 0
+      const allDiscussion: { mentorId: string; mentorName: string; text: string }[] = []
+      let stopped = false
 
+      // ============ 第一輪：每位導師各自表態 ============
       for (const mentorId of turnOrder) {
-        if (speakerCount >= MAX_SPEAKERS_PER_ROUND) break
-
+        if (stopped) break
         const mentor = allPersonaMap.get(mentorId)
         if (!mentor) continue
 
         const others = otherMentorNames(mentor.id)
-        const recentDiscussion = thisRoundMsgs.map((r) => `${r.mentorName}：${r.text}`).join('\n')
+        const recentDiscussion = allDiscussion.map((r) => `${r.mentorName}：${r.text}`).join('\n')
 
-        // 最後一位發言者必須問用戶問題
-        const isLastSpeaker = speakerCount === MAX_SPEAKERS_PER_ROUND - 1
-        const roundtableRules = [
+        const round1Rules = [
           '',
           `你正在一個圓桌群聊中，和其他導師（${others}）一起跟用戶聊天。`,
           '你們是一群真正的朋友在認真討論一個問題。',
           '',
-          '回應方式：',
+          '【第一輪：分享你的觀點】',
           '- 說出你真正的想法，不要敷衍。分享你的經歷、故事、具體案例。',
-          '- 如果你同意前面某人的觀點，說出你同意的原因，並補充新的角度。',
-          '- 如果你不同意，直接用 @導師名 反駁，說出你的理由。',
+          '- 如果前面有人說了，你可以簡短回應他們，但重點是提出你自己的獨特觀點。',
           '- 不要重複別人已經說過的話。如果沒新東西要說，回覆「（跳過）」。',
+          '- 這一輪不要問用戶問題（不要用 @用戶），先讓所有人都表態完。',
           '',
           '禁止：',
           '- 不要寫一句話就結束。你是在跟朋友聊天，不是在寫格言。',
           '- 不要空泛的心靈雞湯（「做自己就好」「相信自己」這種廢話不要說）。',
           '- 不要解釋你的思考過程。',
-          '',
-          isLastSpeaker
-            ? '【最重要的指令】你是這輪最後一位發言者。分享你的觀點後，你的回應必須以 @用戶 開頭的問題結尾。問一個具體、有深度的問題，根據討論內容追問用戶的真實情況。例如：「@用戶 你剛才提到...，我想問你...？」這個問題會讓討論暫停，等用戶回答後再繼續。'
-            : '',
-        ].filter(Boolean).join('\n')
+        ].join('\n')
 
-        const systemPrompt = mentor.systemPrompt + memoryContext + theoryContext + recentContext + roundtableRules
+        const systemPrompt = mentor.systemPrompt + memoryContext + theoryContext + recentContext + round1Rules
 
-        const prompt = thisRoundMsgs.length === 0
+        const prompt = allDiscussion.length === 0
           ? `對話紀錄：\n${history}\n\n以 ${mentor.name} 的身分，針對用戶的問題分享你的看法。要具體、有深度，用你自己的經歷或故事來說明。`
-          : `對話紀錄：\n${history}\n\n本輪討論：\n${recentDiscussion}\n\n以 ${mentor.name} 的身分加入討論。回應前面導師的觀點（同意、反駁、補充都可以），不要重複已經說過的話。`
+          : `對話紀錄：\n${history}\n\n目前討論：\n${recentDiscussion}\n\n以 ${mentor.name} 的身分加入討論。提出你自己的觀點，可以簡短回應前面的人，但重點是你獨特的角度。`
 
-        const meta = {
-          mentorId: mentor.id,
-          mentorName: mentor.name,
-          color: mentor.color,
-          initial: mentor.initial,
+        const text = await emitMentorTurn(controller, encoder, mentor, systemPrompt, prompt)
+        if (text) {
+          allDiscussion.push({ mentorId: mentor.id, mentorName: mentor.name, text })
+          // 如果導師不聽話還是問了 @用戶，尊重它
+          if (text.includes('@用戶') && (text.includes('？') || text.includes('?'))) {
+            stopped = true
+          }
         }
+      }
 
-        try {
-          controller.enqueue(encoder.encode(
-            `data: ${JSON.stringify({ type: 'step_start', meta })}\n\n`
-          ))
+      // ============ 第二輪：互相辯論 + 最後一人綜合 ============
+      if (!stopped && allDiscussion.length >= 2) {
+        // 選出最多 MAX_DEBATERS_ROUND2 位導師來辯論（隨機順序，跟第一輪不同）
+        const round2Order = shuffle([...mentorIds]).slice(0, MAX_DEBATERS_ROUND2)
+        let debateCount = 0
 
-          const { text: fullText } = await generateText({
-            model: proxy('claude-sonnet-4-6'),
-            system: systemPrompt,
-            prompt,
-            maxOutputTokens: 300,
-          })
+        for (const mentorId of round2Order) {
+          const mentor = allPersonaMap.get(mentorId)
+          if (!mentor) continue
 
-          const trimmed = fullText.trim()
+          const others = otherMentorNames(mentor.id)
+          const fullDiscussion = allDiscussion.map((r) => `${r.mentorName}：${r.text}`).join('\n')
+          const isCloser = debateCount === round2Order.length - 1 // 最後一位結辯者
 
-          if (trimmed === '（跳過）' || trimmed === '（點頭）' || trimmed === '') {
-            controller.enqueue(encoder.encode(
-              `data: ${JSON.stringify({ type: 'step_skip', mentorId: mentor.id })}\n\n`
-            ))
-            continue
+          const round2Rules = [
+            '',
+            `你正在一個圓桌群聊中，和其他導師（${others}）一起跟用戶聊天。`,
+            '',
+            '【第二輪：辯論與回應】',
+            '- 現在所有人都表態完了。這是你回應其他導師的機會。',
+            '- 用 @導師名 直接回應你同意或不同意的觀點。要具體，不要「我同意」就結束。',
+            '- 可以融合其他導師的觀點，提出更完整的看法。',
+            '- 可以指出別人的盲點或補充他們漏掉的面向。',
+            '',
+            isCloser
+              ? [
+                  '【最重要的指令】你是這次討論的最後一位發言者。你需要做兩件事：',
+                  '1. 回應其他導師的觀點，提出你的綜合看法。可以融合多位導師的想法，給出更完整的建議。',
+                  '2. 最後用 @用戶 問一個具體、有深度的問題，讓用戶回應。例如：「@用戶 聽完我們的討論，你覺得...？」',
+                ].join('\n')
+              : [
+                  '- 不要問用戶問題（不要用 @用戶），把討論空間留給後面的人。',
+                  '- 大膽地反駁或挑戰其他導師的觀點！',
+                ].join('\n'),
+            '',
+            '禁止：',
+            '- 不要重複第一輪自己說過的話。',
+            '- 不要空泛的總結（「每個人都有道理」這種話不要說）。',
+          ].join('\n')
+
+          const systemPrompt = mentor.systemPrompt + memoryContext + theoryContext + recentContext + round2Rules
+
+          const prompt = `對話紀錄：\n${history}\n\n本次圓桌討論：\n${fullDiscussion}\n\n以 ${mentor.name} 的身分回應其他導師的觀點。${isCloser ? '你是最後一位發言者，綜合大家的討論後，用 @用戶 問一個問題。' : '直接回應你認同或不認同的觀點。'}`
+
+          const text = await emitMentorTurn(controller, encoder, mentor, systemPrompt, prompt)
+          if (text) {
+            allDiscussion.push({ mentorId: mentor.id, mentorName: mentor.name, text })
+            debateCount++
+            if (text.includes('@用戶') && (text.includes('？') || text.includes('?'))) {
+              break
+            }
           }
-
-          speakerCount++
-
-          controller.enqueue(encoder.encode(
-            `data: ${JSON.stringify({ type: 'step_delta', mentorId: mentor.id, delta: trimmed })}\n\n`
-          ))
-
-          controller.enqueue(encoder.encode(
-            `data: ${JSON.stringify({ type: 'step_done', mentorId: mentor.id })}\n\n`
-          ))
-
-          thisRoundMsgs.push({ mentorName: mentor.name, text: trimmed })
-
-          // @用戶 提問 → 立刻停，後面的人不用說了
-          if (trimmed.includes('@用戶') && (trimmed.includes('？') || trimmed.includes('?'))) {
-            break
-          }
-
-        } catch (err) {
-          console.error(`[Roundtable] ${mentor.name} 回應失敗:`, err)
-          controller.enqueue(encoder.encode(
-            `data: ${JSON.stringify({ type: 'step_error', meta, error: `${mentor.name}暫時無法回應` })}\n\n`
-          ))
         }
       }
 
