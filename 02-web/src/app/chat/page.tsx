@@ -13,6 +13,7 @@ import { ChatInput } from '@/components/ChatInput'
 import { ActionSuggestion } from '@/components/ActionSuggestion'
 import { RoundtableView } from '@/components/RoundtableView'
 import { DebateMentorPicker } from '@/components/DebateMentorPicker'
+import { MentorDetailModal } from '@/components/DetailModal'
 
 const PERSONA_ACTIONS: Record<string, string[]> = {
   franklin: ['如何建立更好的習慣？', '幫我規劃今天的任務', '我拖延症很嚴重怎麼辦'],
@@ -48,6 +49,7 @@ export default function ChatPage() {
   const [debateMentors, setDebateMentors] = useState<Persona[]>([])
   const [debateTheoryIds, setDebateTheoryIds] = useState<string[]>([])
   const [showDebatePicker, setShowDebatePicker] = useState(false)
+  const [detailMentor, setDetailMentor] = useState<Persona | null>(null)
 
   const activeMentorIdRef = useRef(activeMentorId)
   useEffect(() => { activeMentorIdRef.current = activeMentorId }, [activeMentorId])
@@ -297,25 +299,34 @@ export default function ChatPage() {
                               {category}
                             </div>
                             {items.map((p) => (
-                              <button
-                                key={p.id}
-                                onClick={() => handleSelectMentor(p.id)}
-                                className={`w-full flex items-center gap-3 px-3 py-2 text-left text-sm transition-colors hover:bg-white/5 ${
-                                  p.id === activeMentorId ? 'bg-white/10' : ''
-                                }`}
-                                style={{ color: 'var(--text-primary)' }}
-                              >
-                                <div
-                                  className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
-                                  style={{ backgroundColor: p.color }}
+                              <div key={p.id} className="relative group">
+                                <button
+                                  onClick={() => handleSelectMentor(p.id)}
+                                  className={`w-full flex items-center gap-3 px-3 py-2 text-left text-sm transition-colors hover:bg-white/5 ${
+                                    p.id === activeMentorId ? 'bg-white/10' : ''
+                                  }`}
+                                  style={{ color: 'var(--text-primary)' }}
                                 >
-                                  {p.initial}
-                                </div>
-                                <div className="min-w-0">
-                                  <div className="text-sm">{p.name}</div>
-                                  <div className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>{p.archetype}</div>
-                                </div>
-                              </button>
+                                  <div
+                                    className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
+                                    style={{ backgroundColor: p.color }}
+                                  >
+                                    {p.initial}
+                                  </div>
+                                  <div className="min-w-0">
+                                    <div className="text-sm">{p.name}</div>
+                                    <div className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>{p.archetype}</div>
+                                  </div>
+                                </button>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); setDetailMentor(p); setShowMentorDropdown(false) }}
+                                  className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity w-5 h-5 rounded-full flex items-center justify-center text-[10px]"
+                                  style={{ color: 'var(--text-muted)', backgroundColor: 'var(--bg-chat)' }}
+                                  title="查看詳情"
+                                >
+                                  i
+                                </button>
+                              </div>
                             ))}
                           </div>
                         ))}
@@ -486,6 +497,11 @@ export default function ChatPage() {
             setDebateQuestion(q)
           }}
         />
+      )}
+
+      {/* 導師詳情彈窗 */}
+      {detailMentor && (
+        <MentorDetailModal mentor={detailMentor} onClose={() => setDetailMentor(null)} />
       )}
     </div>
   )

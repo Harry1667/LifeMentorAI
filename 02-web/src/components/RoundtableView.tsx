@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import type { Persona } from '@/lib/types/persona'
+import { MentorDetailModal } from '@/components/DetailModal'
 
 interface RoundtableMessage {
   id: string
@@ -36,6 +37,7 @@ export function RoundtableView({ mentors, initialQuestion, theoryIds, sessionId:
   const [isComposing, setIsComposing] = useState(false)
   const [copySuccess, setCopySuccess] = useState(false)
   const [synthesized, setSynthesized] = useState(false)
+  const [detailMentor, setDetailMentor] = useState<Persona | null>(null)
   const [sessionId, setSessionId] = useState<string | null>(initialSessionId ?? null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -308,14 +310,15 @@ export function RoundtableView({ mentors, initialQuestion, theoryIds, sessionId:
           </span>
           <div className="flex -space-x-1.5">
             {mentors.map((m) => (
-              <div
+              <button
                 key={m.id}
-                className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white border border-[var(--bg-chat)]"
+                onClick={() => setDetailMentor(m)}
+                className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white border border-[var(--bg-chat)] cursor-pointer hover:scale-110 transition-transform"
                 style={{ backgroundColor: m.color }}
-                title={m.name}
+                title={`查看 ${m.name} 的詳情`}
               >
                 {m.initial}
-              </div>
+              </button>
             ))}
           </div>
         </div>
@@ -479,6 +482,11 @@ export function RoundtableView({ mentors, initialQuestion, theoryIds, sessionId:
           送出
         </button>
       </form>
+
+      {/* 導師詳情彈窗 */}
+      {detailMentor && (
+        <MentorDetailModal mentor={detailMentor} onClose={() => setDetailMentor(null)} />
+      )}
     </div>
   )
 }

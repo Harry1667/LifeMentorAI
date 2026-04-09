@@ -2,12 +2,15 @@
 
 import { useState, useEffect } from 'react'
 import type { Persona } from '@/lib/types/persona'
+import { MentorDetailModal, TheoryDetailModal } from '@/components/DetailModal'
 
 interface TheoryOption {
   id: string
   name: string
   coreIdea: string
   category: string
+  keyPrinciples?: string[]
+  application?: string
 }
 
 interface DebateMentorPickerProps {
@@ -24,6 +27,8 @@ export function DebateMentorPicker({ personas, onStart, onCancel, initialQuestio
   )
   const [theories, setTheories] = useState<TheoryOption[]>([])
   const [selectedTheoryIds, setSelectedTheoryIds] = useState<Set<string>>(new Set())
+  const [detailMentor, setDetailMentor] = useState<Persona | null>(null)
+  const [detailTheory, setDetailTheory] = useState<TheoryOption | null>(null)
 
   // 載入理論列表
   useEffect(() => {
@@ -119,24 +124,34 @@ export function DebateMentorPicker({ personas, onStart, onCancel, initialQuestio
                   {items.map((p) => {
                     const selected = selectedIds.has(p.id)
                     return (
-                      <button
-                        key={p.id}
-                        onClick={() => toggleMentor(p.id)}
-                        className="flex items-center gap-2 px-3 py-2 rounded-lg text-left transition-all text-sm"
-                        style={{
-                          backgroundColor: selected ? `${p.color}30` : 'var(--bg-chat)',
-                          border: `1px solid ${selected ? p.color : 'var(--border-subtle)'}`,
-                          color: selected ? 'var(--text-primary)' : 'var(--text-secondary)',
-                        }}
-                      >
-                        <div
-                          className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0"
-                          style={{ backgroundColor: p.color, opacity: selected ? 1 : 0.4 }}
+                      <div key={p.id} className="relative group">
+                        <button
+                          onClick={() => toggleMentor(p.id)}
+                          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left transition-all text-sm"
+                          style={{
+                            backgroundColor: selected ? `${p.color}30` : 'var(--bg-chat)',
+                            border: `1px solid ${selected ? p.color : 'var(--border-subtle)'}`,
+                            color: selected ? 'var(--text-primary)' : 'var(--text-secondary)',
+                          }}
                         >
-                          {p.initial}
-                        </div>
-                        <span className="truncate">{p.name}</span>
-                      </button>
+                          <div
+                            className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0"
+                            style={{ backgroundColor: p.color, opacity: selected ? 1 : 0.4 }}
+                          >
+                            {p.initial}
+                          </div>
+                          <span className="truncate">{p.name}</span>
+                        </button>
+                        {/* 查看詳情按鈕 */}
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setDetailMentor(p) }}
+                          className="absolute right-1.5 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity w-5 h-5 rounded-full flex items-center justify-center text-[10px]"
+                          style={{ color: 'var(--text-muted)', backgroundColor: 'var(--bg-primary)' }}
+                          title="查看詳情"
+                        >
+                          i
+                        </button>
+                      </div>
                     )
                   })}
                 </div>
@@ -161,21 +176,31 @@ export function DebateMentorPicker({ personas, onStart, onCancel, initialQuestio
                     {items.map((t) => {
                       const selected = selectedTheoryIds.has(t.id)
                       return (
-                        <button
-                          key={t.id}
-                          onClick={() => toggleTheory(t.id)}
-                          className="flex flex-col px-3 py-2 rounded-lg text-left transition-all text-xs"
-                          style={{
-                            backgroundColor: selected ? 'rgba(217, 119, 6, 0.15)' : 'var(--bg-chat)',
-                            border: `1px solid ${selected ? 'var(--accent-gold)' : 'var(--border-subtle)'}`,
-                            color: selected ? 'var(--text-primary)' : 'var(--text-secondary)',
-                          }}
-                        >
-                          <span className="font-medium">{t.name}</span>
-                          <span className="text-[10px] line-clamp-1 mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                            {t.coreIdea}
-                          </span>
-                        </button>
+                        <div key={t.id} className="relative group">
+                          <button
+                            onClick={() => toggleTheory(t.id)}
+                            className="w-full flex flex-col px-3 py-2 rounded-lg text-left transition-all text-xs"
+                            style={{
+                              backgroundColor: selected ? 'rgba(217, 119, 6, 0.15)' : 'var(--bg-chat)',
+                              border: `1px solid ${selected ? 'var(--accent-gold)' : 'var(--border-subtle)'}`,
+                              color: selected ? 'var(--text-primary)' : 'var(--text-secondary)',
+                            }}
+                          >
+                            <span className="font-medium">{t.name}</span>
+                            <span className="text-[10px] line-clamp-1 mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                              {t.coreIdea}
+                            </span>
+                          </button>
+                          {/* 查看詳情按鈕 */}
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setDetailTheory(t) }}
+                            className="absolute right-1.5 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity w-5 h-5 rounded-full flex items-center justify-center text-[10px]"
+                            style={{ color: 'var(--text-muted)', backgroundColor: 'var(--bg-primary)' }}
+                            title="查看詳情"
+                          >
+                            i
+                          </button>
+                        </div>
                       )
                     })}
                   </div>
@@ -204,6 +229,16 @@ export function DebateMentorPicker({ personas, onStart, onCancel, initialQuestio
           </button>
         </div>
       </div>
+
+      {/* 導師詳情彈窗 */}
+      {detailMentor && (
+        <MentorDetailModal mentor={detailMentor} onClose={() => setDetailMentor(null)} />
+      )}
+
+      {/* 理論詳情彈窗 */}
+      {detailTheory && (
+        <TheoryDetailModal theory={detailTheory} onClose={() => setDetailTheory(null)} />
+      )}
     </div>
   )
 }

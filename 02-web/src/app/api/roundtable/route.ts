@@ -72,9 +72,8 @@ function shuffle<T>(arr: T[]): T[] {
   return a
 }
 
-// 討論輪數設定
-const DEBATE_ROUNDS = 2 // 第一輪：各自表態；第二輪：辯論回應
-const MAX_DEBATERS_ROUND2 = 2 // 第二輪最多幾人回應（避免太冗長）
+// 第二輪最多幾人回應（避免太冗長）
+const MAX_DEBATERS_ROUND2 = 2
 
 export async function POST(req: Request) {
   const { userId } = await auth()
