@@ -142,18 +142,24 @@ export async function POST(req: Request) {
   }
 
   // 移除回應尾部直接向用戶提問的段落（第一輪強制用）
+  // 從尾部往前遞迴截，直到最後一段不是問句
   function stripTrailingUserQuestion(text: string): string {
-    // 找到最後一個以 ？ 或 ? 結尾的段落
     const paragraphs = text.split(/\n\n+/)
     if (paragraphs.length <= 1) return text // 只有一段的話不截
 
-    const lastPara = paragraphs[paragraphs.length - 1].trim()
-    // 如果最後一段包含問號且不是 @某個導師名 開頭（修辭/反問），截掉
-    if ((lastPara.includes('？') || lastPara.includes('?')) && !lastPara.startsWith('@')) {
-      const result = paragraphs.slice(0, -1).join('\n\n').trim()
-      return result || text // 防止截到空
+    // 從尾部往前刪，直到最後一段不含問號或是 @導師 開頭
+    while (paragraphs.length > 1) {
+      const lastPara = paragraphs[paragraphs.length - 1].trim()
+      const hasQuestion = lastPara.includes('？') || lastPara.includes('?')
+      const isMentorDirected = lastPara.startsWith('@')
+      if (hasQuestion && !isMentorDirected) {
+        paragraphs.pop()
+      } else {
+        break
+      }
     }
-    return text
+
+    return paragraphs.join('\n\n').trim()
   }
 
   // 發送一位導師的回應，回傳文字（null 表示跳過或失敗）
