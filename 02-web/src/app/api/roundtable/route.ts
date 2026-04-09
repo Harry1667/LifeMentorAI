@@ -141,6 +141,21 @@ export async function POST(req: Request) {
     turnOrder = shuffle([...mentorIds])
   }
 
+  // 移除回應尾部直接向用戶提問的段落（第一輪強制用）
+  function stripTrailingUserQuestion(text: string): string {
+    // 找到最後一個以 ？ 或 ? 結尾的段落
+    const paragraphs = text.split(/\n\n+/)
+    if (paragraphs.length <= 1) return text // 只有一段的話不截
+
+    const lastPara = paragraphs[paragraphs.length - 1].trim()
+    // 如果最後一段包含問號且不是 @某個導師名 開頭（修辭/反問），截掉
+    if ((lastPara.includes('？') || lastPara.includes('?')) && !lastPara.startsWith('@')) {
+      const result = paragraphs.slice(0, -1).join('\n\n').trim()
+      return result || text // 防止截到空
+    }
+    return text
+  }
+
   // 發送一位導師的回應，回傳文字（null 表示跳過或失敗）
   async function emitMentorTurn(
     controller: ReadableStreamDefaultController,
@@ -148,6 +163,7 @@ export async function POST(req: Request) {
     mentor: Persona,
     systemPrompt: string,
     prompt: string,
+    options?: { stripUserQuestion?: boolean },
   ): Promise<string | null> {
     const meta = {
       mentorId: mentor.id,
@@ -168,13 +184,18 @@ export async function POST(req: Request) {
         maxOutputTokens: 600,
       })
 
-      const trimmed = fullText.trim()
+      let trimmed = fullText.trim()
 
       if (trimmed === '（跳過）' || trimmed === '（點頭）' || trimmed === '') {
         controller.enqueue(encoder.encode(
           `data: ${JSON.stringify({ type: 'step_skip', mentorId: mentor.id })}\n\n`
         ))
         return null
+      }
+
+      // 第一輪：強制移除尾部的用戶提問
+      if (options?.stripUserQuestion) {
+        trimmed = stripTrailingUserQuestion(trimmed)
       }
 
       controller.enqueue(encoder.encode(
@@ -235,7 +256,7 @@ export async function POST(req: Request) {
           ? `對話紀錄：\n${history}\n\n以 ${mentor.name} 的身分，針對用戶的問題分享你的看法。要具體、有深度，用你自己的經歷或故事來說明。`
           : `對話紀錄：\n${history}\n\n目前討論：\n${recentDiscussion}\n\n以 ${mentor.name} 的身分加入討論。提出你自己的觀點，可以簡短回應前面的人，但重點是你獨特的角度。`
 
-        const text = await emitMentorTurn(controller, encoder, mentor, systemPrompt, prompt)
+        const text = await emitMentorTurn(controller, encoder, mentor, systemPrompt, prompt, { stripUserQuestion: true })
         if (text) {
           allDiscussion.push({ mentorId: mentor.id, mentorName: mentor.name, text })
           // 如果導師不聽話還是問了 @用戶，尊重它
