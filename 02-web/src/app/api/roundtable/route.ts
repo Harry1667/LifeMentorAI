@@ -72,8 +72,8 @@ function shuffle<T>(arr: T[]): T[] {
   return a
 }
 
-// 安全上限
-const MAX_SPEAKERS = 6
+// 每輪最多 3 人發言，硬性停止
+const MAX_SPEAKERS_PER_ROUND = 3
 
 export async function POST(req: Request) {
   const { userId } = await auth()
@@ -146,7 +146,7 @@ export async function POST(req: Request) {
       let speakerCount = 0
 
       for (const mentorId of turnOrder) {
-        if (speakerCount >= MAX_SPEAKERS) break
+        if (speakerCount >= MAX_SPEAKERS_PER_ROUND) break
 
         const mentor = allPersonaMap.get(mentorId)
         if (!mentor) continue
@@ -154,38 +154,34 @@ export async function POST(req: Request) {
         const others = otherMentorNames(mentor.id)
         const recentDiscussion = thisRoundMsgs.map((r) => `${r.mentorName}：${r.text}`).join('\n')
 
-        // 根據已發言人數動態調整 prompt
-        const shouldAskUser = speakerCount >= 2  // 已有 2 人以上發言
+        // 最後一位發言者必須問用戶問題
+        const isLastSpeaker = speakerCount === MAX_SPEAKERS_PER_ROUND - 1
         const roundtableRules = [
           '',
           `你正在一個圓桌群聊中，和其他導師（${others}）一起跟用戶聊天。`,
-          '你們是一群朋友在討論，語氣自然、真誠、有溫度。',
-          '根據你的性格和專業，自由決定要說什麼、說多少。',
+          '你們是一群真正的朋友在認真討論一個問題。',
           '',
-          '可以做的事：',
-          '- 分享你獨特的觀點或經驗',
-          '- @導師名 回應或反駁其他導師的觀點',
-          '- @用戶 直接對用戶說話或問問題',
-          '- 補充前面有人漏掉的角度',
-          '- 如果你真的沒什麼要補充的，回覆「（跳過）」',
+          '回應方式：',
+          '- 說出你真正的想法，不要敷衍。分享你的經歷、故事、具體案例。',
+          '- 如果你同意前面某人的觀點，說出你同意的原因，並補充新的角度。',
+          '- 如果你不同意，直接用 @導師名 反駁，說出你的理由。',
+          '- 不要重複別人已經說過的話。如果沒新東西要說，回覆「（跳過）」。',
           '',
-          '不要做的事：',
-          '- 不要重複別人已經說過的觀點',
-          '- 不要空泛的心靈雞湯',
-          '- 不要說出思考過程（如「我同意某某，所以...」直接說你的觀點就好）',
+          '禁止：',
+          '- 不要寫一句話就結束。你是在跟朋友聊天，不是在寫格言。',
+          '- 不要空泛的心靈雞湯（「做自己就好」「相信自己」這種廢話不要說）。',
+          '- 不要解釋你的思考過程。',
           '',
-          '長度：根據你想表達的內容自由決定。有重要觀點就多說，簡單附和就短說。',
-          '',
-          shouldAskUser
-            ? '【提示】已經有幾位導師分享了觀點。如果你覺得討論到了一個適合聽聽用戶想法的時機，可以在你的回應最後用 @用戶 提一個具體的問題。一旦你 @用戶 提問，其他人會停下來等用戶回應。'
+          isLastSpeaker
+            ? '【最重要的指令】你是這輪最後一位發言者。分享你的觀點後，你的回應必須以 @用戶 開頭的問題結尾。問一個具體、有深度的問題，根據討論內容追問用戶的真實情況。例如：「@用戶 你剛才提到...，我想問你...？」這個問題會讓討論暫停，等用戶回答後再繼續。'
             : '',
         ].filter(Boolean).join('\n')
 
         const systemPrompt = mentor.systemPrompt + memoryContext + theoryContext + recentContext + roundtableRules
 
         const prompt = thisRoundMsgs.length === 0
-          ? `對話紀錄：\n${history}\n\n以 ${mentor.name} 的身分回應用戶。`
-          : `對話紀錄：\n${history}\n\n本輪討論：\n${recentDiscussion}\n\n以 ${mentor.name} 的身分加入討論。`
+          ? `對話紀錄：\n${history}\n\n以 ${mentor.name} 的身分，針對用戶的問題分享你的看法。要具體、有深度，用你自己的經歷或故事來說明。`
+          : `對話紀錄：\n${history}\n\n本輪討論：\n${recentDiscussion}\n\n以 ${mentor.name} 的身分加入討論。回應前面導師的觀點（同意、反駁、補充都可以），不要重複已經說過的話。`
 
         const meta = {
           mentorId: mentor.id,
