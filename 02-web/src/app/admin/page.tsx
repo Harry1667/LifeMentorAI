@@ -246,11 +246,16 @@ export default function AdminPage() {
                 </div>
 
                 <div>
-                  <label className="text-xs mb-1 block" style={{ color: 'var(--text-secondary)' }}>System Prompt</label>
+                  <label className="text-xs mb-1 block" style={{ color: 'var(--text-secondary)' }}>
+                    System Prompt
+                    <span className="ml-2 text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                      （遵守 6 區塊架構：身份定位 → 心智模型 → 決策啟發法 → 表達 DNA → 內在矛盾 → 已知局限。詳見 src/lib/personas/PERSONA_FRAMEWORK.md）
+                    </span>
+                  </label>
                   <textarea
                     value={mentorPreview.systemPrompt}
                     onChange={(e) => setMentorPreview({ ...mentorPreview, systemPrompt: e.target.value })}
-                    rows={8}
+                    rows={16}
                     className="w-full px-3 py-2 rounded-lg text-xs outline-none resize-y"
                     style={{
                       backgroundColor: 'var(--bg-chat)',
