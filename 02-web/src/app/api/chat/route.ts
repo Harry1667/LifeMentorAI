@@ -1,5 +1,11 @@
 import { auth } from '@clerk/nextjs/server'
-import { streamText, convertToModelMessages, type UIMessage } from 'ai'
+import {
+  generateText,
+  convertToModelMessages,
+  createUIMessageStream,
+  createUIMessageStreamResponse,
+  type UIMessage,
+} from 'ai'
 import { proxy } from '@/lib/ai-proxy'
 import { PERSONAS } from '@/lib/personas'
 import { getUserMemories, saveMemories } from '@/lib/supabase/client'
@@ -97,13 +103,23 @@ export async function POST(req: Request) {
     .map((p) => p.text)
     .join('') ?? ''
 
-  // 串流回應
-  const result = streamText({
-    model: proxy('claude-sonnet-4-6'),
-    system: systemPrompt,
-    messages: await convertToModelMessages(messages),
-    maxOutputTokens: 1200,
-    onFinish: async ({ text }) => {
+  // 用 generateText（streamText 在 proxy bridge 上會卡死，跟 roundtable 一樣的問題）
+  // 然後用 createUIMessageStream 模擬串流，讓 useChat 能正常解析
+  const stream = createUIMessageStream({
+    execute: async ({ writer }) => {
+      const { text } = await generateText({
+        model: proxy('claude-sonnet-4-6'),
+        system: systemPrompt,
+        messages: await convertToModelMessages(messages),
+        maxOutputTokens: 1200,
+      })
+
+      // 寫入完整訊息（一次到位，沒有逐字串流但能正常顯示）
+      const id = `msg_${Date.now()}`
+      writer.write({ type: 'text-start', id })
+      writer.write({ type: 'text-delta', id, delta: text })
+      writer.write({ type: 'text-end', id })
+
       // 非同步提取記憶，不阻塞回應
       extractMemories(lastUserMessage, text).then((extracted) => {
         if (extracted.length > 0) {
@@ -113,5 +129,5 @@ export async function POST(req: Request) {
     },
   })
 
-  return result.toUIMessageStreamResponse()
+  return createUIMessageStreamResponse({ stream })
 }

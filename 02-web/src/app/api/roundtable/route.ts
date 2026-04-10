@@ -140,25 +140,33 @@ export async function POST(req: Request) {
     turnOrder = shuffle([...mentorIds])
   }
 
-  // 移除回應尾部直接向用戶提問的段落（第一輪強制用）
-  // 從尾部往前遞迴截，直到最後一段不是問句
+  // 移除回應尾部直接向用戶提問的行（第一輪強制用）
+  // 按單一 \n 切行，從尾部往前遞迴截，直到最後一行不是問句
   function stripTrailingUserQuestion(text: string): string {
-    const paragraphs = text.split(/\n\n+/)
-    if (paragraphs.length <= 1) return text // 只有一段的話不截
+    const lines = text.split(/\n/)
+    if (lines.length <= 1) {
+      // 單行情況：如果整段是問句且不是 @ 開頭，整段截掉沒意義，保留
+      return text
+    }
 
-    // 從尾部往前刪，直到最後一段不含問號或是 @導師 開頭
-    while (paragraphs.length > 1) {
-      const lastPara = paragraphs[paragraphs.length - 1].trim()
-      const hasQuestion = lastPara.includes('？') || lastPara.includes('?')
-      const isMentorDirected = lastPara.startsWith('@')
+    // 從尾部往前刪，直到最後一行不含問號或是 @導師 開頭
+    while (lines.length > 1) {
+      const lastLine = lines[lines.length - 1].trim()
+      // 空行直接刪
+      if (lastLine === '') {
+        lines.pop()
+        continue
+      }
+      const hasQuestion = lastLine.includes('？') || lastLine.includes('?')
+      const isMentorDirected = lastLine.startsWith('@')
       if (hasQuestion && !isMentorDirected) {
-        paragraphs.pop()
+        lines.pop()
       } else {
         break
       }
     }
 
-    return paragraphs.join('\n\n').trim()
+    return lines.join('\n').trim()
   }
 
   // 發送一位導師的回應，回傳文字（null 表示跳過或失敗）
