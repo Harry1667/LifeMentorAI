@@ -11,6 +11,8 @@ interface SidebarProps {
   collapsed: boolean
   onToggle: () => void
   refreshKey?: number
+  mobileOpen?: boolean
+  onMobileClose?: () => void
 }
 
 export interface SessionSummary {
@@ -46,6 +48,8 @@ export function Sidebar({
   collapsed,
   onToggle,
   refreshKey,
+  mobileOpen = false,
+  onMobileClose,
 }: SidebarProps) {
   const [sessions, setSessions] = useState<SessionSummary[]>([])
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
@@ -77,31 +81,32 @@ export function Sidebar({
     }).catch(() => {})
   }
 
-  // 收合狀態：只顯示漢堡按鈕
-  if (collapsed) {
-    return (
-      <aside className="hidden md:flex flex-col w-12 shrink-0 items-center py-3 border-r"
-        style={{ backgroundColor: 'var(--bg-sidebar)', borderColor: 'var(--border-subtle)' }}>
-        <button onClick={onToggle} className="p-2 rounded-lg hover:bg-white/5 transition-colors" style={{ color: 'var(--text-secondary)' }}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M3 6h18M3 12h18M3 18h18" />
-          </svg>
-        </button>
-      </aside>
-    )
+  // 包裝 callback：手機版點擊後自動關閉抽屜
+  const wrapMobileClose = (fn: () => void) => () => {
+    fn()
+    onMobileClose?.()
   }
 
-  return (
-    <aside
-      className="hidden md:flex flex-col w-64 shrink-0 border-r"
-      style={{ backgroundColor: 'var(--bg-sidebar)', borderColor: 'var(--border-subtle)' }}
-    >
+  // Sidebar 內容（桌機 / 手機共用）
+  const sidebarBody = (isMobile: boolean) => (
+    <>
       {/* 頂部 */}
       <div className="flex items-center justify-between px-3 py-3">
-        <button onClick={onToggle} className="p-2 rounded-lg hover:bg-white/5 transition-colors" style={{ color: 'var(--text-secondary)' }}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M3 6h18M3 12h18M3 18h18" />
-          </svg>
+        <button
+          onClick={isMobile ? onMobileClose : onToggle}
+          className="p-2 rounded-lg hover:bg-white/5 transition-colors"
+          style={{ color: 'var(--text-secondary)' }}
+          aria-label={isMobile ? '關閉側邊欄' : '收合側邊欄'}
+        >
+          {isMobile ? (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          ) : (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M3 6h18M3 12h18M3 18h18" />
+            </svg>
+          )}
         </button>
         <div className="relative">
           <button
@@ -119,11 +124,11 @@ export function Sidebar({
             <>
               <div className="fixed inset-0 z-40" onClick={() => setShowNewMenu(false)} />
               <div
-                className="absolute left-0 top-full mt-1 w-44 rounded-xl py-1 z-50 shadow-lg"
+                className="absolute right-0 top-full mt-1 w-44 rounded-xl py-1 z-50 shadow-lg"
                 style={{ backgroundColor: 'var(--bg-primary)', border: '1px solid var(--border-subtle)' }}
               >
                 <button
-                  onClick={() => { setShowNewMenu(false); onNewChat() }}
+                  onClick={() => { setShowNewMenu(false); wrapMobileClose(onNewChat)() }}
                   className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left text-sm hover:bg-white/5 transition-colors"
                   style={{ color: 'var(--text-primary)' }}
                 >
@@ -133,7 +138,7 @@ export function Sidebar({
                   新對話
                 </button>
                 <button
-                  onClick={() => { setShowNewMenu(false); onNewRoundtable() }}
+                  onClick={() => { setShowNewMenu(false); wrapMobileClose(onNewRoundtable)() }}
                   className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left text-sm hover:bg-white/5 transition-colors"
                   style={{ color: 'var(--accent-gold)' }}
                 >
@@ -169,7 +174,7 @@ export function Sidebar({
                 className={`group relative flex items-center gap-2 px-3 py-2.5 rounded-lg cursor-pointer transition-all ${
                   activeSessionId === s.id ? 'bg-white/10' : 'hover:bg-white/5'
                 }`}
-                onClick={() => onSelectSession(s)}
+                onClick={() => { onSelectSession(s); onMobileClose?.() }}
               >
                 {/* 導師頭像 */}
                 <div className="flex -space-x-1 shrink-0">
@@ -205,7 +210,7 @@ export function Sidebar({
                   </span>
                 </div>
 
-                {/* 刪除 */}
+                {/* 刪除：手機常駐顯示，桌機 hover 顯示 */}
                 {deleteConfirm === s.id ? (
                   <div className="flex gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
                     <button onClick={() => handleDelete(s.id)} className="text-[10px] px-1.5 py-0.5 rounded bg-red-600 text-white">確認</button>
@@ -214,7 +219,7 @@ export function Sidebar({
                 ) : (
                   <button
                     onClick={(e) => { e.stopPropagation(); setDeleteConfirm(s.id) }}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity text-xs shrink-0"
+                    className={`${isMobile ? 'opacity-60' : 'opacity-0 group-hover:opacity-100'} transition-opacity text-xs shrink-0 px-2 py-1`}
                     style={{ color: 'var(--text-muted)' }}
                   >
                     ✕
@@ -238,7 +243,47 @@ export function Sidebar({
           管理導師 / 理論
         </a>
       </div>
-    </aside>
+    </>
+  )
+
+  return (
+    <>
+      {/* 桌機：常駐 sidebar */}
+      {collapsed ? (
+        <aside className="hidden md:flex flex-col w-12 shrink-0 items-center py-3 border-r"
+          style={{ backgroundColor: 'var(--bg-sidebar)', borderColor: 'var(--border-subtle)' }}>
+          <button onClick={onToggle} className="p-2 rounded-lg hover:bg-white/5 transition-colors" style={{ color: 'var(--text-secondary)' }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M3 6h18M3 12h18M3 18h18" />
+            </svg>
+          </button>
+        </aside>
+      ) : (
+        <aside
+          className="hidden md:flex flex-col w-64 shrink-0 border-r"
+          style={{ backgroundColor: 'var(--bg-sidebar)', borderColor: 'var(--border-subtle)' }}
+        >
+          {sidebarBody(false)}
+        </aside>
+      )}
+
+      {/* 手機：抽屜 */}
+      {mobileOpen && (
+        <div className="md:hidden fixed inset-0 z-50 flex">
+          <div
+            className="absolute inset-0 bg-black/60"
+            onClick={onMobileClose}
+            aria-hidden="true"
+          />
+          <aside
+            className="relative flex flex-col w-72 max-w-[85vw] h-full shadow-2xl border-r animate-[slideIn_0.2s_ease-out]"
+            style={{ backgroundColor: 'var(--bg-sidebar)', borderColor: 'var(--border-subtle)' }}
+          >
+            {sidebarBody(true)}
+          </aside>
+        </div>
+      )}
+    </>
   )
 }
 
@@ -247,7 +292,12 @@ export function MobileNav() {
   return (
     <div
       className="md:hidden flex border-t"
-      style={{ backgroundColor: 'var(--bg-sidebar)', borderColor: 'var(--border-subtle)' }}
+      style={{
+        backgroundColor: 'var(--bg-sidebar)',
+        borderColor: 'var(--border-subtle)',
+        // iOS PWA 底部 home indicator 安全區
+        paddingBottom: 'env(safe-area-inset-bottom)',
+      }}
     >
       <a href="/chat" className="flex-1 flex flex-col items-center py-2.5 gap-0.5" style={{ color: 'var(--accent-gold)' }}>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" /></svg>

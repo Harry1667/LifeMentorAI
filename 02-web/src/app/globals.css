@@ -54,6 +54,12 @@ body {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border-subtle); border-radius: 2px; }
 
+/* 手機側邊欄滑入動畫 */
+@keyframes slideIn {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
 /* 思考中動畫 */
 @keyframes blink {
   0%, 100% { opacity: 1; }

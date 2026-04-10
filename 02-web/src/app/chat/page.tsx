@@ -27,6 +27,7 @@ export default function ChatPage() {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [sidebarRefreshKey, setSidebarRefreshKey] = useState(0)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const [showMentorDropdown, setShowMentorDropdown] = useState(false)
 
   const personaMap = useMemo(
@@ -246,35 +247,48 @@ export default function ChatPage() {
           collapsed={sidebarCollapsed}
           onToggle={() => setSidebarCollapsed((v) => !v)}
           refreshKey={sidebarRefreshKey}
+          mobileOpen={mobileSidebarOpen}
+          onMobileClose={() => setMobileSidebarOpen(false)}
         />
 
         {/* 主區域 */}
         <main className="flex flex-col flex-1 overflow-hidden">
-          {/* Header */}
+          {/* Header（圓桌模式下由 RoundtableView 自己渲染） */}
+          {!isRoundtable && (
           <header className="flex items-center justify-between px-4 py-2.5 shrink-0" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-            <div className="flex items-center gap-3">
-              <span className="text-sm font-semibold hidden sm:block" style={{ color: 'var(--accent-gold)' }}>
+            <div className="flex items-center gap-2">
+              {/* 手機漢堡：開啟側邊欄 */}
+              <button
+                onClick={() => setMobileSidebarOpen(true)}
+                className="md:hidden p-2 -ml-2 rounded-lg hover:bg-white/5 transition-colors"
+                style={{ color: 'var(--text-secondary)' }}
+                aria-label="開啟側邊欄"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M3 6h18M3 12h18M3 18h18" />
+                </svg>
+              </button>
+              <span className="text-sm font-semibold" style={{ color: 'var(--accent-gold)' }}>
                 Mentora
               </span>
             </div>
 
             <div className="flex items-center gap-2">
               {/* 導師下拉選單 */}
-              {!isRoundtable && (
-                <div className="relative">
+              <div className="relative">
                   <button
                     onClick={() => setShowMentorDropdown((v) => !v)}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors hover:bg-white/5"
+                    className="flex items-center gap-2 px-2 sm:px-3 py-1.5 rounded-lg text-sm transition-colors hover:bg-white/5 max-w-[140px] sm:max-w-none"
                     style={{ color: 'var(--text-primary)' }}
                   >
                     <div
-                      className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white"
+                      className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
                       style={{ backgroundColor: persona.color }}
                     >
                       {persona.initial}
                     </div>
-                    <span>{persona.name}</span>
-                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5">
+                    <span className="truncate min-w-0">{persona.name}</span>
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" className="shrink-0">
                       <path d="M3 5l3 3 3-3" />
                     </svg>
                   </button>
@@ -334,7 +348,6 @@ export default function ChatPage() {
                     </>
                   )}
                 </div>
-              )}
               {/* 複製對話紀錄按鈕 */}
               {messages.length > 0 && (
                 <button
@@ -359,6 +372,7 @@ export default function ChatPage() {
               <UserButton />
             </div>
           </header>
+          )}
 
           {/* 圓桌群聊 */}
           {isRoundtable && (
@@ -366,6 +380,7 @@ export default function ChatPage() {
               initialQuestion={debateQuestion!}
               mentors={debateMentors}
               theoryIds={debateTheoryIds}
+              onOpenSidebar={() => setMobileSidebarOpen(true)}
               sessionId={activeSessionId}
               onClose={handleRoundtableClose}
               onSessionCreated={() => setSidebarRefreshKey((k) => k + 1)}
@@ -379,7 +394,7 @@ export default function ChatPage() {
                 <div className="max-w-3xl mx-auto px-4 py-6 space-y-5">
                   {/* 空狀態 */}
                   {messages.length === 0 && !isLoading && (
-                    <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6">
+                    <div className="flex flex-col items-center justify-center min-h-[40vh] sm:min-h-[60vh] gap-5 sm:gap-6 py-8">
                       <div
                         className="w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold text-white"
                         style={{ backgroundColor: persona.color }}
@@ -394,7 +409,7 @@ export default function ChatPage() {
                           {persona.greeting}
                         </p>
                       </div>
-                      <div className="grid grid-cols-2 gap-2 max-w-md w-full">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-md w-full">
                         {(PERSONA_ACTIONS[activeMentorId] ?? []).map((action) => (
                           <button
                             key={action}
