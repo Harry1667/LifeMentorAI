@@ -50,14 +50,55 @@
    - 新增 `PERSONA_FRAMEWORK.md`、`_template.ts`
    - admin 表單 label 加提示
 
+9. **chat route 大修 — streamText 改 generateText** 🔥
+   - 發現 `streamText` 在 proxy bridge 上完全卡死（直接測試證實連一個 chunk 都沒輸出）
+   - 不只 `for await`，連 `toUIMessageStreamResponse()` 也壞掉
+   - 改用 `generateText + createUIMessageStream`，手動寫 `text-start/delta/end` chunks
+   - `feedback_streaming.md` 記憶已更新（從「streamText 不穩定」升級為「streamText 完全不能用」）
+
+10. **圓桌人數限制 + 後端強制 @用戶**
+    - `MAX_SPEAKERS_ROUND1 = 3`（之前用戶選 9 個導師結果第一輪跑了 9 個）
+    - 第二輪優先選沒在第一輪講過的人
+    - 結辯者沒問 @用戶 時，後端強制再呼叫一次 AI 補一個追問訊息
+    - `stripTrailingUserQuestion` 改按單一 \n 切行（之前 \n\n+ 切段對單行回應失效）
+
+11. **停止按鈕**
+    - `ChatInput` 加 `onStop` prop，loading 時送出鈕變紅色停止鈕
+    - chat page 接 `useChat` 的 `stop()`
+    - `RoundtableView` 加停止按鈕（abort + 清空 + 儲存）
+
+12. **詳情彈窗顯示完整 system prompt**
+    - `DetailModal` 從顯示摘要改為顯示**完整 system prompt** 內容
+    - 加複製按鈕
+    - 理論 modal 顯示 `systemPromptExtension`
+    - admin 後台導師/理論卡片可點擊查看詳情
+    - 模態框寬度從 max-w-md 改為 max-w-2xl
+
+13. **部署到生產環境** ✅
+    - 解決 git dubious ownership（`safe.directory` 設定）
+    - 解決 .pyc 檔案 merge conflict（`git checkout --` 丟掉）
+    - mentora.looptw.com 已上線最新版
+    - PM2 重啟次數從 1 → 2，新版本確認啟動
+
+14. **新增通用部署 SOP 文檔** 📘
+    - `01-dev/DEPLOY-SOP.md` — 6 區塊完整部署流程
+    - .gitignore 範本、第一次建置、後續更新、常見問題、依賴清單、一鍵腳本
+    - 可帶到其他專案直接複用
+
+15. **清理 .DS_Store git 追蹤**
+    - `git rm --cached .DS_Store 02-web/.DS_Store`
+
 ### 未完成的事
-- mathbox.looptw.com Nginx vhost 還沒在伺服器上修
+- mathbox.looptw.com Nginx vhost 還沒在伺服器上修（FIX-nginx-vhost.md 已刪，內容見 git history）
 - Clerk production key 切換
-- 測試新 persona 框架的圓桌效果
+- Controller already closed bug（用戶 abort 時的 race condition，error log 偶爾出現）
+- 線上測試新版本對話品質（兩輪辯論 + 後端強制 @用戶 + 新 persona 框架）
 
 ### 下次從哪裡開始
-- SSH 進伺服器照 FIX-nginx-vhost.md 建立 mathbox vhost
-- 部署最新版本到 mentora.looptw.com 並測試
+- 線上測試 https://mentora.looptw.com 新版本
+- 觀察兩輪辯論制 + 強制 @用戶 是否真的擋住對話一直跑
+- 如果用戶反映 abort 時 server log 仍有 controller closed 錯誤，加 try-catch 保護
+- 考慮新增更多導師（孔子、愛因斯坦、賈伯斯、馬斯克等已自訂的）按 PERSONA_FRAMEWORK.md 撰寫
 - 觀察兩輪辯論制 + 新 persona prompt 的對話品質
 - 考慮新增更多導師（孔子、愛因斯坦、賈伯斯、馬斯克等），按 PERSONA_FRAMEWORK.md 撰寫
 
