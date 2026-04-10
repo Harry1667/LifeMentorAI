@@ -65,7 +65,7 @@ export default function ChatPage() {
   )
   /* eslint-enable react-hooks/refs */
 
-  const { messages, sendMessage, status, setMessages } = useChat({ transport })
+  const { messages, sendMessage, status, setMessages, stop } = useChat({ transport })
   const isLoading = status === 'submitted' || status === 'streaming'
 
   // 載入對話記錄
@@ -473,6 +473,7 @@ export default function ChatPage() {
                 onChange={setInputValue}
                 onSubmit={handleSubmit}
                 onRoundtable={() => setShowDebatePicker(true)}
+                onStop={stop}
                 isLoading={isLoading}
                 accentColor={persona.color}
               />

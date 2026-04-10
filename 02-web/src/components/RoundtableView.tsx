@@ -473,14 +473,38 @@ export function RoundtableView({ mentors, initialQuestion, theoryIds, sessionId:
             }}
           />
         </div>
-        <button
-          type="submit"
-          disabled={!inputValue.trim()}
-          className="px-4 py-2.5 rounded-xl text-sm font-medium text-white transition-opacity disabled:opacity-30"
-          style={{ backgroundColor: 'var(--accent-gold)' }}
-        >
-          送出
-        </button>
+        {isLoading ? (
+          <button
+            type="button"
+            onClick={() => {
+              if (abortRef.current) {
+                abortRef.current.abort()
+                abortRef.current = null
+              }
+              setIsLoading(false)
+              // 清除空的 mentor messages
+              setMessages((prev) => prev.filter((m) => m.role === 'user' || m.content.trim() !== ''))
+              saveSession(messagesRef.current.filter((m) => m.role === 'user' || m.content.trim() !== ''))
+            }}
+            className="px-4 py-2.5 rounded-xl text-sm font-medium text-white transition-opacity hover:opacity-80 flex items-center gap-1.5"
+            style={{ backgroundColor: '#ef4444' }}
+            title="停止生成"
+          >
+            <svg width="12" height="12" viewBox="0 0 14 14" fill="white">
+              <rect x="2" y="2" width="10" height="10" rx="1" />
+            </svg>
+            停止
+          </button>
+        ) : (
+          <button
+            type="submit"
+            disabled={!inputValue.trim()}
+            className="px-4 py-2.5 rounded-xl text-sm font-medium text-white transition-opacity disabled:opacity-30"
+            style={{ backgroundColor: 'var(--accent-gold)' }}
+          >
+            送出
+          </button>
+        )}
       </form>
 
       {/* 導師詳情彈窗 */}

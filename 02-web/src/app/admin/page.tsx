@@ -5,6 +5,7 @@ import { UserButton } from '@clerk/nextjs'
 import Link from 'next/link'
 import type { Persona } from '@/lib/types/persona'
 import type { TheoryRecord } from '@/lib/supabase/admin'
+import { MentorDetailModal, TheoryDetailModal } from '@/components/DetailModal'
 
 type Tab = 'mentor' | 'theory'
 
@@ -26,6 +27,10 @@ export default function AdminPage() {
   const [analyzing, setAnalyzing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+
+  // 詳情彈窗
+  const [detailMentor, setDetailMentor] = useState<Persona | null>(null)
+  const [detailTheory, setDetailTheory] = useState<TheoryRecord | null>(null)
 
   useEffect(() => {
     fetch('/api/admin/personas').then((r) => r.json()).then(setCustomPersonas).catch(() => {})
@@ -284,10 +289,12 @@ export default function AdminPage() {
                 </h2>
                 <div className="space-y-2">
                   {customPersonas.map((p) => (
-                    <div
+                    <button
                       key={p.id}
-                      className="flex items-center gap-3 px-4 py-3 rounded-lg"
+                      onClick={() => setDetailMentor(p)}
+                      className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-colors hover:bg-white/5"
                       style={{ backgroundColor: 'var(--bg-bubble-mentor)', border: '1px solid var(--border-subtle)' }}
+                      title="點擊查看詳情"
                     >
                       <div
                         className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0"
@@ -306,14 +313,16 @@ export default function AdminPage() {
                         </div>
                         <div className="text-xs truncate" style={{ color: 'var(--text-secondary)' }}>{p.archetype}</div>
                       </div>
-                      <button
-                        onClick={() => deleteMentor(p.id)}
-                        className="text-xs px-3 py-1 rounded transition-opacity hover:opacity-70"
+                      <span
+                        onClick={(e) => { e.stopPropagation(); deleteMentor(p.id) }}
+                        role="button"
+                        tabIndex={0}
+                        className="text-xs px-3 py-1 rounded transition-opacity hover:opacity-70 cursor-pointer"
                         style={{ color: '#ef4444', border: '1px solid #ef4444' }}
                       >
                         刪除
-                      </button>
-                    </div>
+                      </span>
+                    </button>
                   ))}
                 </div>
               </div>
@@ -431,10 +440,12 @@ export default function AdminPage() {
                 </h2>
                 <div className="space-y-2">
                   {theories.map((t) => (
-                    <div
+                    <button
                       key={t.id}
-                      className="px-4 py-3 rounded-lg"
+                      onClick={() => setDetailTheory(t)}
+                      className="w-full px-4 py-3 rounded-lg text-left transition-colors hover:bg-white/5"
                       style={{ backgroundColor: 'var(--bg-bubble-mentor)', border: '1px solid var(--border-subtle)' }}
+                      title="點擊查看詳情"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex-1 min-w-0">
@@ -461,15 +472,17 @@ export default function AdminPage() {
                             </div>
                           )}
                         </div>
-                        <button
-                          onClick={() => deleteTheory(t.id)}
-                          className="text-xs px-3 py-1 rounded shrink-0 transition-opacity hover:opacity-70"
+                        <span
+                          onClick={(e) => { e.stopPropagation(); deleteTheory(t.id) }}
+                          role="button"
+                          tabIndex={0}
+                          className="text-xs px-3 py-1 rounded shrink-0 transition-opacity hover:opacity-70 cursor-pointer"
                           style={{ color: '#ef4444', border: '1px solid #ef4444' }}
                         >
                           刪除
-                        </button>
+                        </span>
                       </div>
-                    </div>
+                    </button>
                   ))}
                 </div>
               </div>
@@ -477,6 +490,14 @@ export default function AdminPage() {
           </div>
         )}
       </div>
+
+      {/* 詳情彈窗 */}
+      {detailMentor && (
+        <MentorDetailModal mentor={detailMentor} onClose={() => setDetailMentor(null)} />
+      )}
+      {detailTheory && (
+        <TheoryDetailModal theory={detailTheory} onClose={() => setDetailTheory(null)} />
+      )}
     </div>
   )
 }

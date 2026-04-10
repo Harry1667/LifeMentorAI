@@ -7,6 +7,7 @@ interface ChatInputProps {
   onChange: (value: string) => void
   onSubmit: (e: FormEvent) => void
   onRoundtable?: () => void
+  onStop?: () => void
   isLoading: boolean
   accentColor?: string
   placeholder?: string
@@ -17,6 +18,7 @@ export function ChatInput({
   onChange,
   onSubmit,
   onRoundtable,
+  onStop,
   isLoading,
   accentColor = 'var(--accent-gold)',
   placeholder,
@@ -93,20 +95,34 @@ export function ChatInput({
             }}
           />
 
-          <button
-            type="submit"
-            disabled={isLoading || !value.trim()}
-            className="shrink-0 w-9 h-9 m-1.5 rounded-xl flex items-center justify-center transition-opacity disabled:opacity-20"
-            style={{ backgroundColor: accentColor }}
-          >
-            {isLoading ? (
-              <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            ) : (
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <path d="M3 13V3l10 5-10 5z" fill="white" />
+          {isLoading && onStop ? (
+            <button
+              type="button"
+              onClick={onStop}
+              className="shrink-0 w-9 h-9 m-1.5 rounded-xl flex items-center justify-center transition-opacity hover:opacity-80"
+              style={{ backgroundColor: '#ef4444' }}
+              title="停止生成"
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="white">
+                <rect x="2" y="2" width="10" height="10" rx="1" />
               </svg>
-            )}
-          </button>
+            </button>
+          ) : (
+            <button
+              type="submit"
+              disabled={isLoading || !value.trim()}
+              className="shrink-0 w-9 h-9 m-1.5 rounded-xl flex items-center justify-center transition-opacity disabled:opacity-20"
+              style={{ backgroundColor: accentColor }}
+            >
+              {isLoading ? (
+                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M3 13V3l10 5-10 5z" fill="white" />
+                </svg>
+              )}
+            </button>
+          )}
         </div>
       </form>
     </div>

@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import type { Persona } from '@/lib/types/persona'
 
 interface TheoryDetail {
@@ -9,6 +10,26 @@ interface TheoryDetail {
   category: string
   keyPrinciples?: string[]
   application?: string
+  systemPromptExtension?: string
+}
+
+// 複製按鈕
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false)
+  return (
+    <button
+      onClick={() => {
+        navigator.clipboard.writeText(text).then(() => {
+          setCopied(true)
+          setTimeout(() => setCopied(false), 2000)
+        })
+      }}
+      className="text-[10px] px-2 py-0.5 rounded transition-opacity hover:opacity-70"
+      style={{ color: copied ? 'var(--accent-gold)' : 'var(--text-muted)', border: '1px solid var(--border-subtle)' }}
+    >
+      {copied ? '已複製' : '複製'}
+    </button>
+  )
 }
 
 // 導師詳情彈窗
@@ -22,7 +43,7 @@ export function MentorDetailModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
       <div
-        className="w-full max-w-md mx-4 rounded-xl p-6 space-y-4 max-h-[80vh] overflow-y-auto"
+        className="w-full max-w-2xl mx-4 rounded-xl p-6 space-y-4 max-h-[85vh] overflow-y-auto"
         style={{ backgroundColor: 'var(--bg-primary)', border: '1px solid var(--border-subtle)' }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -34,21 +55,28 @@ export function MentorDetailModal({
           >
             {mentor.initial}
           </div>
-          <div>
+          <div className="flex-1">
             <h2 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
               {mentor.name}
             </h2>
             <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-              {mentor.fullName}
+              {mentor.fullName} · {mentor.archetype}
             </p>
           </div>
         </div>
 
-        {/* 基本資訊 */}
-        <div className="space-y-3">
-          <InfoRow label="角色定位" value={mentor.archetype} />
-          <InfoRow label="擅長領域" value={mentor.domain} />
-          {mentor.category && <InfoRow label="分類" value={mentor.category} />}
+        {/* 基本資訊（精簡） */}
+        <div className="grid grid-cols-2 gap-3 text-xs">
+          <div>
+            <span style={{ color: 'var(--text-muted)' }}>擅長領域：</span>
+            <span style={{ color: 'var(--text-secondary)' }}>{mentor.domain}</span>
+          </div>
+          {mentor.category && (
+            <div>
+              <span style={{ color: 'var(--text-muted)' }}>分類：</span>
+              <span style={{ color: 'var(--text-secondary)' }}>{mentor.category}</span>
+            </div>
+          )}
         </div>
 
         {/* 歡迎詞 */}
@@ -62,6 +90,28 @@ export function MentorDetailModal({
           >
             「{mentor.greeting}」
           </p>
+        </div>
+
+        {/* System Prompt（核心） */}
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              System Prompt（人格提示詞）
+            </label>
+            <CopyButton text={mentor.systemPrompt} />
+          </div>
+          <pre
+            className="text-xs leading-relaxed px-3 py-2.5 rounded-lg whitespace-pre-wrap font-sans"
+            style={{
+              backgroundColor: 'var(--bg-chat)',
+              color: 'var(--text-secondary)',
+              border: '1px solid var(--border-subtle)',
+              maxHeight: '50vh',
+              overflowY: 'auto',
+            }}
+          >
+            {mentor.systemPrompt}
+          </pre>
         </div>
 
         {/* 關閉 */}
@@ -88,7 +138,7 @@ export function TheoryDetailModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
       <div
-        className="w-full max-w-md mx-4 rounded-xl p-6 space-y-4 max-h-[80vh] overflow-y-auto"
+        className="w-full max-w-2xl mx-4 rounded-xl p-6 space-y-4 max-h-[85vh] overflow-y-auto"
         style={{ backgroundColor: 'var(--bg-primary)', border: '1px solid var(--border-subtle)' }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -154,6 +204,30 @@ export function TheoryDetailModal({
           </div>
         )}
 
+        {/* 導師使用指令（注入到 system prompt 的內容） */}
+        {theory.systemPromptExtension && (
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                導師使用指令（注入到 system prompt）
+              </label>
+              <CopyButton text={theory.systemPromptExtension} />
+            </div>
+            <pre
+              className="text-xs leading-relaxed px-3 py-2.5 rounded-lg whitespace-pre-wrap font-sans"
+              style={{
+                backgroundColor: 'var(--bg-chat)',
+                color: 'var(--text-secondary)',
+                border: '1px solid var(--border-subtle)',
+                maxHeight: '40vh',
+                overflowY: 'auto',
+              }}
+            >
+              {theory.systemPromptExtension}
+            </pre>
+          </div>
+        )}
+
         {/* 關閉 */}
         <button
           onClick={onClose}
@@ -167,16 +241,3 @@ export function TheoryDetailModal({
   )
 }
 
-// 共用的資訊列元件
-function InfoRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <label className="text-xs block mb-0.5" style={{ color: 'var(--text-muted)' }}>
-        {label}
-      </label>
-      <p className="text-sm" style={{ color: 'var(--text-primary)' }}>
-        {value}
-      </p>
-    </div>
-  )
-}

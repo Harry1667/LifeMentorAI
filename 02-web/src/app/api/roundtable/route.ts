@@ -72,6 +72,8 @@ function shuffle<T>(arr: T[]): T[] {
   return a
 }
 
+// 第一輪最多幾位導師發言（即使選了更多人，只取前 N 位）
+const MAX_SPEAKERS_ROUND1 = 3
 // 第二輪最多幾人回應（避免太冗長）
 const MAX_DEBATERS_ROUND2 = 2
 
@@ -233,10 +235,12 @@ export async function POST(req: Request) {
     async start(controller) {
       const allDiscussion: { mentorId: string; mentorName: string; text: string }[] = []
       let stopped = false
+      let round1Speakers = 0
 
-      // ============ 第一輪：每位導師各自表態 ============
+      // ============ 第一輪：每位導師各自表態（最多 MAX_SPEAKERS_ROUND1 人）============
       for (const mentorId of turnOrder) {
         if (stopped) break
+        if (round1Speakers >= MAX_SPEAKERS_ROUND1) break
         const mentor = allPersonaMap.get(mentorId)
         if (!mentor) continue
 
@@ -272,6 +276,7 @@ export async function POST(req: Request) {
         const text = await emitMentorTurn(controller, encoder, mentor, systemPrompt, prompt, { stripUserQuestion: true })
         if (text) {
           allDiscussion.push({ mentorId: mentor.id, mentorName: mentor.name, text })
+          round1Speakers++
           // 如果導師不聽話還是問了 @用戶，尊重它
           if (text.includes('@用戶') && (text.includes('？') || text.includes('?'))) {
             stopped = true
@@ -281,8 +286,12 @@ export async function POST(req: Request) {
 
       // ============ 第二輪：互相辯論 + 最後一人綜合 ============
       if (!stopped && allDiscussion.length >= 2) {
-        // 選出最多 MAX_DEBATERS_ROUND2 位導師來辯論（隨機順序，跟第一輪不同）
-        const round2Order = shuffle([...mentorIds]).slice(0, MAX_DEBATERS_ROUND2)
+        // 第二輪：優先從第一輪沒發言過的人選；如果不夠就從第一輪發言過的人裡挑
+        const round1SpeakerIds = new Set(allDiscussion.map((d) => d.mentorId))
+        const notSpoken = mentorIds.filter((id) => !round1SpeakerIds.has(id))
+        const spoken = mentorIds.filter((id) => round1SpeakerIds.has(id))
+        const round2Pool = [...shuffle(notSpoken), ...shuffle(spoken)]
+        const round2Order = round2Pool.slice(0, MAX_DEBATERS_ROUND2)
         let debateCount = 0
 
         for (const mentorId of round2Order) {
@@ -329,6 +338,41 @@ export async function POST(req: Request) {
             allDiscussion.push({ mentorId: mentor.id, mentorName: mentor.name, text })
             debateCount++
             if (text.includes('@用戶') && (text.includes('？') || text.includes('?'))) {
+              break
+            }
+            // 結辯者結束後沒問 @用戶 → 後端強制補一個追問訊息
+            if (isCloser) {
+              const followupMeta = {
+                mentorId: mentor.id,
+                mentorName: mentor.name,
+                color: mentor.color,
+                initial: mentor.initial,
+              }
+              const followupPrompt = `根據前面的圓桌討論，以 ${mentor.name} 的身分，用一句話以 @用戶 開頭問一個具體、有深度的問題，讓用戶回應。例如：「@用戶 聽完我們的討論，你覺得...？」直接輸出那一句問題就好，不要其他內容。\n\n本次討論內容：\n${allDiscussion.map((r) => `${r.mentorName}：${r.text}`).join('\n')}`
+              try {
+                controller.enqueue(encoder.encode(
+                  `data: ${JSON.stringify({ type: 'step_start', meta: followupMeta })}\n\n`
+                ))
+                const { text: followupText } = await generateText({
+                  model: proxy('claude-sonnet-4-6'),
+                  system: mentor.systemPrompt,
+                  prompt: followupPrompt,
+                  maxOutputTokens: 150,
+                })
+                let q = followupText.trim()
+                // 確保以 @用戶 開頭
+                if (!q.startsWith('@用戶')) q = `@用戶 ${q}`
+                // 確保有問號
+                if (!q.includes('？') && !q.includes('?')) q += '？'
+                controller.enqueue(encoder.encode(
+                  `data: ${JSON.stringify({ type: 'step_delta', mentorId: mentor.id, delta: q })}\n\n`
+                ))
+                controller.enqueue(encoder.encode(
+                  `data: ${JSON.stringify({ type: 'step_done', mentorId: mentor.id })}\n\n`
+                ))
+              } catch (err) {
+                console.error('[Roundtable] 強制追問失敗:', err)
+              }
               break
             }
           }
