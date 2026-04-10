@@ -1,5 +1,68 @@
 # SESSION NOTES
 
+## 2026-04-10（第六次工作階段）
+
+### 今天完成的事
+
+1. **Nginx vhost 問題診斷**
+   - 發現 https://mathbox.looptw.com 顯示 mentora 內容
+   - 根因：mathbox 沒有 Nginx vhost，HTTPS 請求 fallback 到 mentora
+   - 寫了 `01-dev/FIX-nginx-vhost.md` 完整修復步驟
+   - 更新 `01-dev/0-run.md` 標註 mentora=橘色雲朵 / mathbox=灰色雲朵
+
+2. **PWA 支援**
+   - `src/app/manifest.ts` — Web App Manifest（深色主題、standalone）
+   - `public/icons/` — 4 個圖示尺寸（從 favicon 生成）
+   - `public/sw.js` — Service Worker（cache-first 靜態、network-first 頁面、不快取 API）
+   - `ServiceWorkerRegister.tsx` — SW 註冊元件
+   - `layout.tsx` 加入 viewport（theme-color、safe-area、apple-web-app meta）
+   - `globals.css` 加入 standalone 模式樣式（safe area、防拖曳但保留對話可選取）
+
+3. **gitignore 清理**
+   - 加入 `01-dev/use_proxycli/`
+   - `git rm -r --cached` 移除追蹤
+
+4. **圓桌討論架構大改 — 兩輪辯論制**
+   - 第一輪：所有導師各自表態（嚴禁向用戶提問）
+   - 第二輪：隨機 2 人辯論回應，最後結辯者 @用戶 提問
+   - `MAX_DEBATERS_ROUND2 = 2`，總共 4-5 次 AI 呼叫
+   - prompt 強調用 @導師名 反駁/融合其他觀點
+
+5. **三項 bug 修復**
+   - 插嘴後殘留空對話框：abort 後過濾 content 為空的 mentor messages
+   - @用戶 必須等回覆：所有導師統一規則 + UI 顯示「導師們在等你的回覆」
+   - 理論不出現：沒選不載入全部、prompt 從「可以」改「必須」、token 300→600
+
+6. **後端強制截掉用戶提問**
+   - prompt 擋不住 AI 在第一輪問用戶問題
+   - `stripTrailingUserQuestion()` 遞迴從尾部截掉問句段落
+   - 只留陳述句結尾，問問題權留給第二輪結辯者
+
+7. **導師/理論詳情彈窗**
+   - `DetailModal.tsx`（MentorDetailModal + TheoryDetailModal）
+   - 三處可查看：圓桌選人 picker（hover）、圓桌頂部頭像（點擊）、一般聊天下拉選單（hover）
+
+8. **persona 框架升級** ⭐
+   - 參考 awesome-persona-distill-skills 架構
+   - 從 300 字性格描述 → 800-1200 字認知操作系統
+   - 重寫三個內建導師（Franklin/Feynman/Stoic）
+   - 6 區塊架構：身份定位 / 心智模型 / 決策啟發法 / 表達 DNA / 內在矛盾 / 已知局限
+   - 新增 `PERSONA_FRAMEWORK.md`、`_template.ts`
+   - admin 表單 label 加提示
+
+### 未完成的事
+- mathbox.looptw.com Nginx vhost 還沒在伺服器上修
+- Clerk production key 切換
+- 測試新 persona 框架的圓桌效果
+
+### 下次從哪裡開始
+- SSH 進伺服器照 FIX-nginx-vhost.md 建立 mathbox vhost
+- 部署最新版本到 mentora.looptw.com 並測試
+- 觀察兩輪辯論制 + 新 persona prompt 的對話品質
+- 考慮新增更多導師（孔子、愛因斯坦、賈伯斯、馬斯克等），按 PERSONA_FRAMEWORK.md 撰寫
+
+---
+
 ## 2026-04-09（第五次工作階段）
 
 ### 今天完成的事
