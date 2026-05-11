@@ -5,3 +5,5 @@
 .DS_Store
 .gstack/
 01-dev/use_proxycli/
+settings.local.json
+.claude-flow/
