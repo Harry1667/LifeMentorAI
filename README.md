@@ -114,3 +114,121 @@ npm run dev
 - 點綴：`#d97706`（琥珀金）
 - 字型：Lora（正文）/ Fraunces（導師名）
 - 導師徽章：字母縮寫 + 代表色（F 深藍 / R 深綠 / M 深灰）
+
+---
+
+## English
+
+An AI life-mentor platform with multiple historical sages around a round table. The moat is **long-term memory**: the system remembers who you are, what you've rejected, and what you prefer — it gets more useful the longer you use it.
+
+### Why it exists
+- Competitors (ChatGPT / Claude) have no long-term memory and only a single voice
+- **Round-table debate model**: shows the user that big questions have no single right answer — different traditions read them differently
+- Accumulated memory is the moat: 6 months of LifeMentorAI is more valuable to *you* than ChatGPT will ever be
+
+### Default mentors (three)
+
+| Mentor | Code | Domain |
+|--------|------|--------|
+| Benjamin Franklin | F | Habits, time management, self-discipline, work ethic |
+| Richard Feynman | R | Learning methods, problem decomposition, the Feynman technique |
+| Marcus Aurelius | M | Emotional regulation, the circle of control, stress |
+
+### Modules
+
+#### C0 (shipped) — memory-aware chat prototype
+- Pick one of three mentors, start chatting (streamed responses)
+- **Long-term memory**: after each session, the AI extracts key points and writes them to the DB; the next session auto-loads them
+- Memory types: Topic / Decision / Preference / Milestone, each with an importance score (1–10)
+- Importance 10 = core values (always in context); 3 = transient (naturally crowded out)
+- Auth via Clerk (Google / email)
+
+#### C1 (planned) — round-table debate + action tracking
+- **Sequential multi-turn debate**: 4 chained API calls (A states view → B reads A and responds → C reads A+B → moderator integrates)
+- **Action cards**: each response auto-extracts 1–2 actionable suggestions; mark them Accepted / In Progress / Done / Rejected
+- **Custom mentors**: type any historical figure; AI gathers public info and assembles a persona
+- Weekly growth digest (cron-triggered)
+- Preference learning (kicks in after 20+ samples)
+
+### Data flow (C0)
+```
+User input
+  → /api/chat (Clerk auth → userId)
+  → Read memories from Supabase (LIMIT 20, importance DESC)
+  → Build system prompt (mentor persona + user memories)
+  → Anthropic API streaming response
+  → onFinish → memory-extraction LLM call → write to Supabase (async, silent on failure)
+```
+
+### Routes
+| Route | Purpose |
+|-------|---------|
+| `/` | Login |
+| `/chat` | Main chat (mentor sidebar + message area) |
+| `/actions` | Action tracking board (C1) |
+| `/summary` | Growth digest (C1) |
+| `/admin` | Admin console |
+
+### Tech stack
+- **Frontend**: Next.js 14 (App Router) + TypeScript + Tailwind CSS v4
+- **Auth**: Clerk (userId taken from server-side `auth()` only — never trust the body)
+- **AI**: Anthropic Claude (claude-sonnet-4-6) via ProxyCLI; Vercel AI SDK for streaming
+- **Database**: Supabase (PostgreSQL) + pgvector (vector search, kicks in at C2)
+- **Deploy**: Vercel
+
+### Database schema (core tables)
+```sql
+-- User memory table
+CREATE TABLE memories (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id TEXT NOT NULL,          -- from Clerk
+  type TEXT NOT NULL,             -- 'topic' | 'decision' | 'preference' | 'milestone'
+  content JSONB NOT NULL,
+  importance INTEGER DEFAULT 5,   -- 1-10, decides whether the memory enters context
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Action tracking table (C1)
+CREATE TABLE actions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id TEXT NOT NULL,
+  advice_text TEXT NOT NULL,
+  status TEXT DEFAULT 'accepted',  -- 'accepted' | 'in_progress' | 'rejected' | 'completed'
+  progress_pct INTEGER DEFAULT 0,
+  mentor_source TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+Full schema: `02-web/src/lib/supabase/schema.sql`
+
+### Env vars
+```bash
+cp 02-web/.env.local.example 02-web/.env.local
+```
+
+| Var | Purpose |
+|-----|---------|
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk publishable key |
+| `CLERK_SECRET_KEY` | Clerk secret |
+| `AI_PROXY_TOKEN` | ProxyCLI token (clip.twloop.com) |
+| `DATABASE_URL` | Supabase Transaction Mode Pooler connection string |
+
+**Important**: use the Supabase **Transaction Mode Pooler** string, not the direct one. Vercel Serverless opens a new connection per request — direct mode burns through the 100-connection cap fast.
+
+### Quick start
+```bash
+cd 02-web
+cp .env.local.example .env.local
+# Fill in Clerk / DB / AI Proxy credentials
+npm install
+npm run dev
+# → http://localhost:3000
+```
+
+### UI design language
+Dark library aesthetic, warm amber accents:
+- Background: `#1a1814` (warm dark grey)
+- Accent: `#d97706` (amber gold)
+- Typography: Lora (body) / Fraunces (mentor names)
+- Mentor badges: initial + signature color (F deep blue / R deep green / M deep grey)
